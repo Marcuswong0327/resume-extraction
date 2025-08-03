@@ -6,6 +6,5 @@ google-cloud-vision
 openpyxl
 requests
 poppler-utils 
-GCP_TYPE
 
 
