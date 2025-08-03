@@ -1,7 +1,7 @@
 streamlit
 pandas
 pdf2image
-Pillow (PIL)
+Pillow
 google-cloud-vision
 openpyxl
 request
