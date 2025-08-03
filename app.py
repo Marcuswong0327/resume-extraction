@@ -34,19 +34,25 @@ def main():
             st.info("Ensure your Google Cloud Vision API credentials are set up in environment variables or provide them here.")
             
             # Check if credentials are available
-            gcp_credentials = {
-                "type": os.getenv("GCP_TYPE", "service_account"),
-                "project_id": os.getenv("GCP_PROJECT_ID", ""),
-                "private_key_id": os.getenv("GCP_PRIVATE_KEY_ID", ""),
-                "private_key": os.getenv("GCP_PRIVATE_KEY", "").replace('\\n', '\n'),
-                "client_email": os.getenv("GCP_CLIENT_EMAIL", ""),
-                "client_id": os.getenv("GCP_CLIENT_ID", ""),
-                "auth_uri": os.getenv("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
-                "token_uri": os.getenv("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
-                "auth_provider_x509_cert_url": os.getenv("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
-                "client_x509_cert_url": os.getenv("GCP_CLIENT_X509_CERT_URL", ""),
-                "universe_domain": os.getenv("GCP_UNIVERSE_DOMAIN", "googleapis.com")
-            }
+            if "gcp" in st.secrets:
+                gcp_credentials = {
+                    "type": st.secrets.gcp.gcp_type,
+                    "project_id": st.secrets.gcp.gcp_project_id,
+                    "private_key_id": st.secrets.gcp.gcp_private_key_id,
+                    "private_key": st.secrets.gcp.gcp_private_key.replace('\\n', '\n'),
+                    "client_email": st.secrets.gcp.gcp_client_email,
+                    "client_id": st.secrets.gcp.gcp_client_id,
+                    "auth_uri": st.secrets.gcp.gcp_auth_uri,
+                    "token_uri": st.secrets.gcp.gcp_token_uri,
+                    "auth_provider_x509_cert_url": st.secrets.gcp.gcp_auth_provider_x509_cert_url,
+                    "client_x509_cert_url": st.secrets.gcp.gcp_client_x509_cert_url,
+                    "universe_domain": st.secrets.gcp.gcp_universe_domain,
+                }
+                # Proceed with initializing OCRService using gcp_credentials
+            else:
+                # Handle the case where secrets are not found
+                st.error("Google Cloud Vision API credentials not found in `st.secrets`.")
+                st.stop()
             
             if gcp_credentials["project_id"]:
                 st.success(f"✅ Project ID: {gcp_credentials['project_id']}")
@@ -55,7 +61,7 @@ def main():
         
         # DeepSeek API Configuration
         st.subheader("DeepSeek V3 API")
-        deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
+        deepseek_api_key = st.secrets.deepseek_api_key
         if deepseek_api_key:
             st.success("✅ DeepSeek API key configured")
         else:
@@ -257,4 +263,5 @@ def export_to_excel():
 
 if __name__ == "__main__":
     main()
+
 
