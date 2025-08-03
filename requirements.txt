@@ -1,14 +1,11 @@
 streamlit
 pandas
-os
-json
 pdf2image
-PIL (Pillow)
+Pillow (PIL)
 google-cloud-vision
-google-oauth2-service-account
-requests
-re
-io
+openpyxl
+request
+poppler-utils 
 GCP_TYPE
 
 GCP_PROJECT_ID
