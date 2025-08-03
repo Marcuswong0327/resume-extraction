@@ -4,7 +4,7 @@ pdf2image
 Pillow
 google-cloud-vision
 openpyxl
-request
+requests
 poppler-utils 
 GCP_TYPE
 
