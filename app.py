@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import os
 import json
-from utils.pdf_processor import PDFProcessor
-from utils.ocr_service import OCRService
-from utils.ai_parser import AIParser
-from utils.data_extractor import DataExtractor
-from utils.excel_exporter import ExcelExporter
+from pdf_processor import PDFProcessor
+from ocr_service import OCRService
+from ai_parser import AIParser
+from data_extractor import DataExtractor
+from excel_exporter import ExcelExporter
 
 def main():
     st.set_page_config(
@@ -257,3 +257,4 @@ def export_to_excel():
 
 if __name__ == "__main__":
     main()
+
