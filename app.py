@@ -30,43 +30,62 @@ def main():
         
         # Google Cloud Vision API Configuration
         st.subheader("Google Cloud Vision API")
+        gcp_credentials = {} # Initialize to empty
         with st.expander("API Credentials", expanded=False):
-            st.info("Ensure your Google Cloud Vision API credentials are set up in environment variables or provide them here.")
+            st.info("Ensure your Google Cloud Vision API credentials are set up in `streamlit.toml`.")
             
-            # Check if credentials are available
-            if "gcp" in st.secrets:
-                gcp_credentials = {
-                    "type": st.secrets.gcp.gcp_type,
-                    "project_id": st.secrets.gcp.gcp_project_id,
-                    "private_key_id": st.secrets.gcp.gcp_private_key_id,
-                    "private_key": st.secrets.gcp.gcp_private_key.replace('\\n', '\n'),
-                    "client_email": st.secrets.gcp.gcp_client_email,
-                    "client_id": st.secrets.gcp.gcp_client_id,
-                    "auth_uri": st.secrets.gcp.gcp_auth_uri,
-                    "token_uri": st.secrets.gcp.gcp_token_uri,
-                    "auth_provider_x509_cert_url": st.secrets.gcp.gcp_auth_provider_x509_cert_url,
-                    "client_x509_cert_url": st.secrets.gcp.gcp_client_x509_cert_url,
-                    "universe_domain": st.secrets.gcp.gcp_universe_domain,
-                }
-                # Proceed with initializing OCRService using gcp_credentials
-            else:
-                # Handle the case where secrets are not found
-                st.error("Google Cloud Vision API credentials not found in `st.secrets`.")
-                st.stop()
+            # Check if credentials are available in st.secrets
+            # Now checking for the flat, uppercase keys as per your image
+            required_gcp_keys = [
+                "GCP_TYPE", "GCP_PROJECT_ID", "GCP_PRIVATE_KEY_ID", "GCP_PRIVATE_KEY",
+                "GCP_CLIENT_EMAIL", "GCP_CLIENT_ID", "GCP_AUTH_URI", "GCP_TOKEN_URI",
+                "GCP_AUTH_PROVIDER_X509_CERT_URL", "GCP_CLIENT_X509_CERT_URL", "GCP_UNIVERSE_DOMAIN"
+            ]
             
-            if gcp_credentials["project_id"]:
-                st.success(f"✅ Project ID: {gcp_credentials['project_id']}")
+            all_gcp_keys_present = True
+            for key in required_gcp_keys:
+                if key not in st.secrets:
+                    all_gcp_keys_present = False
+                    st.error(f"❌ Missing Google Cloud Vision API credential: `{key}` in `st.secrets`.")
+                    break
+
+            if all_gcp_keys_present:
+                try:
+                    gcp_credentials = {
+                        "type": st.secrets.GCP_TYPE,
+                        "project_id": st.secrets.GCP_PROJECT_ID,
+                        "private_key_id": st.secrets.GCP_PRIVATE_KEY_ID,
+                        "private_key": st.secrets.GCP_PRIVATE_KEY.replace('\\n', '\n'),
+                        "client_email": st.secrets.GCP_CLIENT_EMAIL,
+                        "client_id": st.secrets.GCP_CLIENT_ID,
+                        "auth_uri": st.secrets.GCP_AUTH_URI,
+                        "token_uri": st.secrets.GCP_TOKEN_URI,
+                        "auth_provider_x509_cert_url": st.secrets.GCP_AUTH_PROVIDER_X509_CERT_URL,
+                        "client_x509_cert_url": st.secrets.GCP_CLIENT_X509_CERT_URL,
+                        "universe_domain": st.secrets.GCP_UNIVERSE_DOMAIN,
+                    }
+                    if gcp_credentials.get("project_id"):
+                        st.success(f"✅ Project ID: {gcp_credentials['project_id']}")
+                    else:
+                        st.error("❌ Google Cloud 'GCP_PROJECT_ID' is empty in `st.secrets`.")
+                except AttributeError as e:
+                    st.error(f"❌ Error loading GCP credentials from `st.secrets`: {e}. Please check your `streamlit.toml` structure.")
+                    st.stop()
             else:
-                st.error("❌ Google Cloud credentials not found in environment variables")
+                st.stop() # Stop execution if not all GCP keys are present
         
         # DeepSeek API Configuration
         st.subheader("DeepSeek V3 API")
-        deepseek_api_key = st.secrets.deepseek_api_key
-        if deepseek_api_key:
-            st.success("✅ DeepSeek API key configured")
+        deepseek_api_key = "" # Initialize to empty
+        if "DEEPSEEK_API_KEY" in st.secrets: # Changed to uppercase
+            deepseek_api_key = st.secrets.DEEPSEEK_API_KEY # Changed to uppercase
+            if deepseek_api_key:
+                st.success("✅ DeepSeek API key configured")
+            else:
+                st.error("❌ DeepSeek API key is empty in `st.secrets`.")
         else:
-            st.error("❌ DeepSeek API key not found in environment variables")
-    
+            st.error("❌ DeepSeek API key not found in `st.secrets`.")
+        
     # Main content area
     col1, col2 = st.columns([2, 1])
     
@@ -89,8 +108,10 @@ def main():
             
             # Process files button
             if st.button("🚀 Process Resumes", type="primary", use_container_width=True):
-                if not gcp_credentials["project_id"] or not deepseek_api_key:
-                    st.error("❌ Please configure both Google Cloud Vision and DeepSeek API credentials before processing.")
+                # Ensure credentials are valid before proceeding
+                # Check if gcp_credentials is not empty and has a project_id, and deepseek_api_key is present
+                if not gcp_credentials or not gcp_credentials.get("project_id") or not deepseek_api_key:
+                    st.error("❌ Please ensure both Google Cloud Vision and DeepSeek API credentials are correctly configured in `streamlit.toml` before processing.")
                 else:
                     process_resumes(uploaded_files, gcp_credentials, deepseek_api_key)
     
@@ -263,5 +284,3 @@ def export_to_excel():
 
 if __name__ == "__main__":
     main()
-
-
