@@ -4,6 +4,7 @@ import streamlit as st
 import time
 import sys # Import sys to check Python version
 import platform # Import platform to check system info
+import certifi # Import certifi to get the path to the CA bundle
 
 class AIParser:
     """Handles AI API integration for intelligent resume parsing, supporting OpenRouter."""
@@ -28,6 +29,15 @@ class AIParser:
             "Content-Type": "application/json"
         }
         
+        # Determine the path to the CA bundle for requests
+        self.verify_certs = True # Default to True
+        try:
+            self.ca_bundle_path = certifi.where()
+            st.write(f"DEBUG: certifi CA bundle path: {self.ca_bundle_path}")
+        except Exception as e:
+            st.warning(f"WARNING: Could not determine certifi CA bundle path: {e}. HTTPS verification might fail.")
+            self.ca_bundle_path = None # Fallback to None, which means requests will use its default mechanism or system CAs
+
         # Add some diagnostic prints for debugging environment issues
         st.write(f"DEBUG: Initializing AIParser with base_url: {self.base_url}, model: {self.model_name}")
         try:
@@ -56,7 +66,8 @@ class AIParser:
                 self.base_url,
                 headers=self.headers,
                 json=test_payload,
-                timeout=10
+                timeout=10,
+                verify=self.ca_bundle_path if self.ca_bundle_path else True # Explicitly use certifi's path, or default to True
             )
             
             if response.status_code != 200:
@@ -206,7 +217,8 @@ Rules:
                 self.base_url,
                 headers=self.headers,
                 json=payload,
-                timeout=60  # Increased timeout
+                timeout=60,  # Increased timeout
+                verify=self.ca_bundle_path if self.ca_bundle_path else True # Explicitly use certifi's path, or default to True
             )
             
             if response.status_code == 200:
