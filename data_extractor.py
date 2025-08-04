@@ -30,7 +30,7 @@ class DataExtractor:
         """
         try:
             # Start with AI parsed data
-            candidate_info = ai_parsed_data.copy()
+            candidate_info = ai_parsed_data.copy() if ai_parsed_data else {}
             candidate_info["filename"] = filename
             candidate_info["raw_text"] = raw_text
             
@@ -105,20 +105,28 @@ class DataExtractor:
             lines = text.split('\n')
             
             # Look for name in first few lines
-            for line in lines[:5]:
+            for line in lines[:10]:  # Increased search range
                 line = line.strip()
                 
                 # Skip empty lines and common header words
                 if not line or any(word in line.lower() for word in 
-                                 ['resume', 'cv', 'curriculum', 'vitae', 'profile']):
+                                 ['resume', 'cv', 'curriculum', 'vitae', 'profile', 'page', 'contact']):
                     continue
                 
                 # Look for lines with 2-4 words that could be a name
                 words = line.split()
                 if 2 <= len(words) <= 4:
                     # Check if words look like names (start with capital letters)
-                    if all(word[0].isupper() and word.isalpha() for word in words):
+                    if all(word[0].isupper() and word.replace('.', '').isalpha() for word in words if len(word) > 1):
                         return line
+                
+                # Single word that might be a name (less reliable)
+                if len(words) == 1 and len(words[0]) > 2 and words[0][0].isupper() and words[0].isalpha():
+                    # Look for a last name in the next lines
+                    for next_line in lines[lines.index(line)+1:lines.index(line)+3]:
+                        next_words = next_line.strip().split()
+                        if len(next_words) == 1 and next_words[0][0].isupper() and next_words[0].isalpha():
+                            return f"{words[0]} {next_words[0]}"
             
             return ""
             
@@ -153,6 +161,11 @@ class DataExtractor:
             # Remove extra whitespace and capitalize properly
             candidate_info["name"] = ' '.join(word.capitalize() for word in name.split())
         
+        # Ensure required fields exist
+        for field in ["skills", "experience", "education"]:
+            if field not in candidate_info:
+                candidate_info[field] = []
+        
         return candidate_info
     
     def _enhance_skills_extraction(self, existing_skills: List[str], raw_text: str) -> List[str]:
@@ -170,50 +183,55 @@ class DataExtractor:
         common_skills = [
             # Programming languages
             'Python', 'Java', 'JavaScript', 'C++', 'C#', 'PHP', 'Ruby', 'Go', 'Rust',
-            'TypeScript', 'Swift', 'Kotlin', 'Scala', 'R', 'MATLAB', 'SQL',
+            'TypeScript', 'Swift', 'Kotlin', 'Scala', 'R', 'MATLAB', 'SQL', 'C',
             
             # Web technologies
             'HTML', 'CSS', 'React', 'Angular', 'Vue.js', 'Node.js', 'Express',
-            'Django', 'Flask', 'Spring', 'Laravel', 'WordPress',
+            'Django', 'Flask', 'Spring', 'Laravel', 'WordPress', 'Bootstrap',
             
             # Databases
             'MySQL', 'PostgreSQL', 'MongoDB', 'SQLite', 'Oracle', 'Redis',
-            'Elasticsearch', 'Cassandra',
+            'Elasticsearch', 'Cassandra', 'DynamoDB',
             
             # Cloud platforms
             'AWS', 'Azure', 'Google Cloud', 'GCP', 'Docker', 'Kubernetes',
-            'Jenkins', 'Git', 'GitHub', 'GitLab',
+            'Jenkins', 'Git', 'GitHub', 'GitLab', 'Terraform',
             
             # Data science
             'Machine Learning', 'Deep Learning', 'TensorFlow', 'PyTorch',
-            'Pandas', 'NumPy', 'Scikit-learn', 'Jupyter',
+            'Pandas', 'NumPy', 'Scikit-learn', 'Jupyter', 'Apache Spark',
             
-            # Other tools
+            # Other tools and frameworks
             'Excel', 'PowerBI', 'Tableau', 'Photoshop', 'Illustrator',
-            'AutoCAD', 'Solidworks', 'JIRA', 'Agile', 'Scrum'
+            'AutoCAD', 'Solidworks', 'JIRA', 'Agile', 'Scrum', 'DevOps',
+            'REST API', 'GraphQL', 'Microservices', 'Linux', 'Windows'
         ]
         
-        enhanced_skills = list(existing_skills)
+        enhanced_skills = list(existing_skills) if existing_skills else []
         
         # Look for additional skills in the text
         text_upper = raw_text.upper()
         for skill in common_skills:
-            if skill.upper() in text_upper and skill not in enhanced_skills:
-                # Check if it's a whole word match
-                if re.search(r'\b' + re.escape(skill.upper()) + r'\b', text_upper):
-                    enhanced_skills.append(skill)
+            skill_variants = [skill, skill.lower(), skill.upper()]
+            
+            for variant in skill_variants:
+                if variant.upper() in text_upper and skill not in enhanced_skills:
+                    # Check if it's a whole word match
+                    if re.search(r'\b' + re.escape(variant.upper()) + r'\b', text_upper):
+                        enhanced_skills.append(skill)
+                        break
         
         # Remove duplicates and empty entries
         enhanced_skills = list(set(skill.strip() for skill in enhanced_skills if skill.strip()))
         
         return sorted(enhanced_skills)
     
-    def _format_experience(self, experience_list: List[Dict]) -> List[str]:
+    def _format_experience(self, experience_list: List) -> List[str]:
         """
         Format experience data for display
         
         Args:
-            experience_list: List of experience dictionaries
+            experience_list: List of experience dictionaries or strings
             
         Returns:
             List of formatted experience strings
@@ -240,6 +258,9 @@ class DataExtractor:
                     parts.append(f"({duration})")
                 
                 if description:
+                    # Truncate long descriptions
+                    if len(description) > 200:
+                        description = description[:200] + "..."
                     parts.append(f"- {description}")
                 
                 if parts:
@@ -249,12 +270,12 @@ class DataExtractor:
         
         return formatted_experience
     
-    def _format_education(self, education_list: List[Dict]) -> List[str]:
+    def _format_education(self, education_list: List) -> List[str]:
         """
         Format education data for display
         
         Args:
-            education_list: List of education dictionaries
+            education_list: List of education dictionaries or strings
             
         Returns:
             List of formatted education strings
