@@ -23,20 +23,37 @@ class PDFProcessor:
             # Read PDF bytes
             pdf_bytes = uploaded_file.read()
             
+            if not pdf_bytes:
+                raise ValueError("PDF file is empty or could not be read")
+            
             # Convert PDF to images
             images = convert_from_bytes(
                 pdf_bytes,
                 dpi=self.dpi,
                 output_folder=None,
-                thread_count=1
+                thread_count=1,
+                fmt='PNG'
             )
+            
+            if not images:
+                raise ValueError("No pages found in PDF file")
             
             # Convert to RGB if necessary (some PDFs might be in CMYK)
             processed_images = []
-            for image in images:
-                if image.mode != 'RGB':
-                    image = image.convert('RGB')
-                processed_images.append(image)
+            for i, image in enumerate(images):
+                try:
+                    if image.mode != 'RGB':
+                        image = image.convert('RGB')
+                    
+                    # Optimize image for OCR
+                    optimized_image = self.optimize_image_for_ocr(image)
+                    processed_images.append(optimized_image)
+                except Exception as e:
+                    st.warning(f"Error processing page {i+1}: {str(e)}")
+                    continue
+            
+            if not processed_images:
+                raise ValueError("No pages could be processed from PDF")
             
             return processed_images
             
@@ -55,20 +72,23 @@ class PDFProcessor:
             Optimized PIL Image object
         """
         try:
-            # Convert to grayscale for better OCR
-            if image.mode != 'L':
-                image = image.convert('L')
+            # Keep original for now, but could add grayscale conversion if needed
+            # Convert to RGB to ensure compatibility
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
             
             # Resize if image is too large (OCR works better on reasonably sized images)
             width, height = image.size
-            if width > 2000 or height > 2000:
+            max_dimension = 2500  # Increased for better quality
+            
+            if width > max_dimension or height > max_dimension:
                 # Calculate new size maintaining aspect ratio
                 if width > height:
-                    new_width = 2000
-                    new_height = int((height * 2000) / width)
+                    new_width = max_dimension
+                    new_height = int((height * max_dimension) / width)
                 else:
-                    new_height = 2000
-                    new_width = int((width * 2000) / height)
+                    new_height = max_dimension
+                    new_width = int((width * max_dimension) / height)
                 
                 image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
             
