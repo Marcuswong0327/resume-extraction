@@ -2,11 +2,13 @@ import requests
 import json
 import streamlit as st
 import time
+import sys # Import sys to check Python version
+import platform # Import platform to check system info
 
 class AIParser:
     """Handles AI API integration for intelligent resume parsing, supporting OpenRouter."""
     
-    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com/v1/chat/completions", model_name: str = "deepseek-chat"):
+    def __init__(self, api_key: str, base_url: str = "https://openrouter.ai/api/v1/chat/completions", model_name: str = "deepseek/deepseek-r1-0528:free"):
         """
         Initialize AI parser with API key, base URL, and model name.
         
@@ -26,6 +28,15 @@ class AIParser:
             "Content-Type": "application/json"
         }
         
+        # Add some diagnostic prints for debugging environment issues
+        st.write(f"DEBUG: Initializing AIParser with base_url: {self.base_url}, model: {self.model_name}")
+        try:
+            st.write(f"DEBUG: requests library version: {requests.__version__}")
+            st.write(f"DEBUG: Python version: {sys.version}")
+            st.write(f"DEBUG: Platform: {platform.platform()}")
+        except AttributeError:
+            st.write("DEBUG: Could not get requests version or system info.")
+
         # Test the API connection during initialization
         self._test_connection()
     
@@ -53,6 +64,7 @@ class AIParser:
                 raise Exception(f"API test failed: {response.status_code} - {response.text}")
                 
         except Exception as e:
+            # Re-raise the exception with a more specific message for debugging
             raise Exception(f"API connection test failed: {str(e)}")
     
     def parse_resume(self, resume_text: str):
