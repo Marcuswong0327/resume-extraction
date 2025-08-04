@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import os
 import json
+import traceback
 from pdf_processor import PDFProcessor
 from ocr_service import OCRService
 from ai_parser import AIParser
@@ -23,6 +23,11 @@ def main():
         st.session_state.processed_candidates = []
     if 'processing_complete' not in st.session_state:
         st.session_state.processing_complete = False
+    if 'processing_in_progress' not in st.session_state:
+        st.session_state.processing_in_progress = False
+    
+    # Check credentials availability
+    credentials_status = check_credentials()
     
     # Sidebar for configuration
     with st.sidebar:
@@ -30,62 +35,23 @@ def main():
         
         # Google Cloud Vision API Configuration
         st.subheader("Google Cloud Vision API")
-        gcp_credentials = {} # Initialize to empty
         with st.expander("API Credentials", expanded=False):
-            st.info("Ensure your Google Cloud Vision API credentials are set up in `streamlit.toml`.")
-            
-            # Check if credentials are available in st.secrets
-            # Now checking for the flat, uppercase keys as per your image
-            required_gcp_keys = [
-                "GCP_TYPE", "GCP_PROJECT_ID", "GCP_PRIVATE_KEY_ID", "GCP_PRIVATE_KEY",
-                "GCP_CLIENT_EMAIL", "GCP_CLIENT_ID", "GCP_AUTH_URI", "GCP_TOKEN_URI",
-                "GCP_AUTH_PROVIDER_X509_CERT_URL", "GCP_CLIENT_X509_CERT_URL", "GCP_UNIVERSE_DOMAIN"
-            ]
-            
-            all_gcp_keys_present = True
-            for key in required_gcp_keys:
-                if key not in st.secrets:
-                    all_gcp_keys_present = False
-                    st.error(f"❌ Missing Google Cloud Vision API credential: `{key}` in `st.secrets`.")
-                    break
-
-            if all_gcp_keys_present:
-                try:
-                    gcp_credentials = {
-                        "type": st.secrets.GCP_TYPE,
-                        "project_id": st.secrets.GCP_PROJECT_ID,
-                        "private_key_id": st.secrets.GCP_PRIVATE_KEY_ID,
-                        "private_key": st.secrets.GCP_PRIVATE_KEY.replace('\\n', '\n'),
-                        "client_email": st.secrets.GCP_CLIENT_EMAIL,
-                        "client_id": st.secrets.GCP_CLIENT_ID,
-                        "auth_uri": st.secrets.GCP_AUTH_URI,
-                        "token_uri": st.secrets.GCP_TOKEN_URI,
-                        "auth_provider_x509_cert_url": st.secrets.GCP_AUTH_PROVIDER_X509_CERT_URL,
-                        "client_x509_cert_url": st.secrets.GCP_CLIENT_X509_CERT_URL,
-                        "universe_domain": st.secrets.GCP_UNIVERSE_DOMAIN,
-                    }
-                    if gcp_credentials.get("project_id"):
-                        st.success(f"✅ Project ID: {gcp_credentials['project_id']}")
-                    else:
-                        st.error("❌ Google Cloud 'GCP_PROJECT_ID' is empty in `st.secrets`.")
-                except AttributeError as e:
-                    st.error(f"❌ Error loading GCP credentials from `st.secrets`: {e}. Please check your `streamlit.toml` structure.")
-                    st.stop()
+            if credentials_status['gcp_status']:
+                st.success("✅ Google Cloud credentials configured")
+                if 'project_id' in st.secrets.get("gcp", {}):
+                    st.info(f"Project ID: {st.secrets['gcp']['project_id']}")
             else:
-                st.stop() # Stop execution if not all GCP keys are present
+                st.error("❌ Google Cloud credentials not found in secrets")
+                st.info("Please add GCP credentials to your secrets.toml file")
         
         # DeepSeek API Configuration
         st.subheader("DeepSeek V3 API")
-        deepseek_api_key = "" # Initialize to empty
-        if "DEEPSEEK_API_KEY" in st.secrets: # Changed to uppercase
-            deepseek_api_key = st.secrets.DEEPSEEK_API_KEY # Changed to uppercase
-            if deepseek_api_key:
-                st.success("✅ DeepSeek API key configured")
-            else:
-                st.error("❌ DeepSeek API key is empty in `st.secrets`.")
+        if credentials_status['deepseek_status']:
+            st.success("✅ DeepSeek API key configured")
         else:
-            st.error("❌ DeepSeek API key not found in `st.secrets`.")
-        
+            st.error("❌ DeepSeek API key not found in secrets")
+            st.info("Please add 'deepseek_api_key' to your secrets.toml file")
+    
     # Main content area
     col1, col2 = st.columns([2, 1])
     
@@ -107,25 +73,28 @@ def main():
                     st.write(f"{i}. {file.name} ({file.size} bytes)")
             
             # Process files button
-            if st.button("🚀 Process Resumes", type="primary", use_container_width=True):
-                # Ensure credentials are valid before proceeding
-                # Check if gcp_credentials is not empty and has a project_id, and deepseek_api_key is present
-                if not gcp_credentials or not gcp_credentials.get("project_id") or not deepseek_api_key:
-                    st.error("❌ Please ensure both Google Cloud Vision and DeepSeek API credentials are correctly configured in `streamlit.toml` before processing.")
+            process_disabled = not (credentials_status['gcp_status'] and credentials_status['deepseek_status']) or st.session_state.processing_in_progress
+            
+            if st.button("🚀 Process Resumes", type="primary", use_container_width=True, disabled=process_disabled):
+                if not credentials_status['gcp_status'] or not credentials_status['deepseek_status']:
+                    st.error("❌ Please configure both Google Cloud Vision and DeepSeek API credentials before processing.")
                 else:
-                    process_resumes(uploaded_files, gcp_credentials, deepseek_api_key)
+                    process_resumes(uploaded_files)
     
     with col2:
         st.header("📊 Processing Status")
-        if st.session_state.processed_candidates:
+        
+        if st.session_state.processing_in_progress:
+            st.info("🔄 Processing in progress...")
+        elif st.session_state.processed_candidates:
             st.metric("Processed Candidates", len(st.session_state.processed_candidates))
             
             if st.session_state.processing_complete:
                 st.success("✅ All resumes processed successfully!")
                 
-                # Export to Excel button
-                if st.button("📥 Export to Excel", type="secondary", use_container_width=True):
-                    export_to_excel()
+                # Auto-generate Excel file
+                if st.button("📥 Generate Excel Report", type="secondary", use_container_width=True):
+                    generate_and_download_excel()
         else:
             st.info("No candidates processed yet. Upload and process resume files to see results here.")
     
@@ -142,64 +111,138 @@ def main():
         with tab2:
             display_detailed_view()
 
-def process_resumes(uploaded_files, gcp_credentials, deepseek_api_key):
-    """Process uploaded resume files"""
+def check_credentials():
+    """Check if all required credentials are available in secrets"""
+    gcp_status = False
+    deepseek_status = False
+    
     try:
-        # Initialize services
-        pdf_processor = PDFProcessor()
-        ocr_service = OCRService(gcp_credentials)
-        ai_parser = AIParser(deepseek_api_key)
-        data_extractor = DataExtractor()
+        # Check GCP credentials
+        if "gcp" in st.secrets and all(key in st.secrets["gcp"] for key in 
+                                     ["type", "project_id", "private_key", "client_email"]):
+            gcp_status = True
+        
+        # Check DeepSeek API key
+        if "deepseek_api_key" in st.secrets:
+            deepseek_status = True
+            
+    except Exception as e:
+        st.error(f"Error checking credentials: {str(e)}")
+    
+    return {
+        'gcp_status': gcp_status,
+        'deepseek_status': deepseek_status
+    }
+
+def process_resumes(uploaded_files):
+    """Process uploaded resume files"""
+    st.session_state.processing_in_progress = True
+    st.session_state.processing_complete = False
+    st.session_state.processed_candidates = []
+    
+    try:
+        # Initialize services with proper error handling
+        with st.spinner("Initializing services..."):
+            try:
+                pdf_processor = PDFProcessor()
+                ocr_service = OCRService(dict(st.secrets["gcp"]))
+                ai_parser = AIParser(st.secrets["deepseek_api_key"])
+                data_extractor = DataExtractor()
+            except Exception as e:
+                st.error(f"❌ Error initializing services: {str(e)}")
+                st.session_state.processing_in_progress = False
+                return
         
         # Progress tracking
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        progress_container = st.container()
+        with progress_container:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            error_container = st.container()
         
-        st.session_state.processed_candidates = []
         total_files = len(uploaded_files)
+        successful_processes = 0
         
         for i, uploaded_file in enumerate(uploaded_files):
             try:
+                current_progress = (i / total_files)
+                progress_bar.progress(current_progress)
                 status_text.text(f"Processing {uploaded_file.name}... ({i+1}/{total_files})")
                 
                 # Convert PDF to images
-                images = pdf_processor.pdf_to_images(uploaded_file)
+                with st.spinner(f"Converting {uploaded_file.name} to images..."):
+                    images = pdf_processor.pdf_to_images(uploaded_file)
+                
+                if not images:
+                    with error_container:
+                        st.warning(f"⚠️ No images could be extracted from {uploaded_file.name}")
+                    continue
                 
                 # Extract text using OCR
-                extracted_text = ""
-                for image in images:
-                    text_from_page = ocr_service.extract_text_from_image(image)
-                    extracted_text += text_from_page + "\n"
+                with st.spinner(f"Extracting text from {uploaded_file.name}..."):
+                    extracted_text = ""
+                    for page_num, image in enumerate(images):
+                        try:
+                            text_from_page = ocr_service.extract_text_from_image(image)
+                            extracted_text += text_from_page + "\n"
+                        except Exception as ocr_error:
+                            with error_container:
+                                st.warning(f"⚠️ OCR failed for page {page_num + 1} of {uploaded_file.name}: {str(ocr_error)}")
                 
                 if not extracted_text.strip():
-                    st.warning(f"⚠️ No text could be extracted from {uploaded_file.name}")
+                    with error_container:
+                        st.warning(f"⚠️ No text could be extracted from {uploaded_file.name}")
                     continue
                 
                 # Parse resume using AI
-                parsed_data = ai_parser.parse_resume(extracted_text)
+                with st.spinner(f"Analyzing {uploaded_file.name} with AI..."):
+                    parsed_data = ai_parser.parse_resume(extracted_text)
                 
                 # Extract structured data
-                candidate_data = data_extractor.extract_candidate_info(
-                    raw_text=extracted_text,
-                    ai_parsed_data=parsed_data,
-                    filename=uploaded_file.name
-                )
+                with st.spinner(f"Structuring data for {uploaded_file.name}..."):
+                    candidate_data = data_extractor.extract_candidate_info(
+                        raw_text=extracted_text,
+                        ai_parsed_data=parsed_data,
+                        filename=uploaded_file.name
+                    )
                 
                 st.session_state.processed_candidates.append(candidate_data)
+                successful_processes += 1
                 
                 # Update progress
                 progress_bar.progress((i + 1) / total_files)
                 
+                # Show success for current file
+                with error_container:
+                    st.success(f"✅ Successfully processed {uploaded_file.name}")
+                
             except Exception as e:
-                st.error(f"❌ Error processing {uploaded_file.name}: {str(e)}")
+                with error_container:
+                    st.error(f"❌ Error processing {uploaded_file.name}: {str(e)}")
+                    with st.expander("Error Details"):
+                        st.code(traceback.format_exc())
                 continue
         
-        status_text.text("✅ Processing complete!")
+        # Final status update
+        progress_bar.progress(1.0)
+        status_text.text(f"✅ Processing complete! Successfully processed {successful_processes}/{total_files} files")
+        
         st.session_state.processing_complete = True
+        st.session_state.processing_in_progress = False
+        
+        # Auto-generate Excel if any candidates were processed
+        if st.session_state.processed_candidates:
+            st.balloons()
+            with st.spinner("Generating Excel report..."):
+                generate_and_download_excel()
+        
         st.rerun()
         
     except Exception as e:
-        st.error(f"❌ An error occurred during processing: {str(e)}")
+        st.error(f"❌ An unexpected error occurred during processing: {str(e)}")
+        with st.expander("Error Details"):
+            st.code(traceback.format_exc())
+        st.session_state.processing_in_progress = False
 
 def display_summary_view():
     """Display summary view of processed candidates"""
@@ -238,8 +281,12 @@ def display_detailed_view():
                 st.write(f"**Phone:** {candidate.get('phone', 'N/A')}")
                 st.write(f"**Source File:** {candidate.get('filename', 'N/A')}")
                 
+                if candidate.get('summary'):
+                    st.subheader("📝 Summary")
+                    st.write(candidate['summary'])
+                
                 st.subheader("🎓 Education")
-                education = candidate.get('education', [])
+                education = candidate.get('education_formatted', candidate.get('education', []))
                 if education:
                     for edu in education:
                         st.write(f"• {edu}")
@@ -248,7 +295,7 @@ def display_detailed_view():
             
             with col2:
                 st.subheader("💼 Work Experience")
-                experience = candidate.get('experience', [])
+                experience = candidate.get('experience_formatted', candidate.get('experience', []))
                 if experience:
                     for exp in experience:
                         st.write(f"• {exp}")
@@ -263,24 +310,30 @@ def display_detailed_view():
                 else:
                     st.write("No skills found")
 
-def export_to_excel():
-    """Export processed candidates to Excel file"""
+def generate_and_download_excel():
+    """Generate and provide download for Excel file"""
     try:
-        exporter = ExcelExporter()
-        excel_file = exporter.export_candidates(st.session_state.processed_candidates)
-        
-        st.download_button(
-            label="📥 Download Excel File",
-            data=excel_file,
-            file_name=f"resume_analysis_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-        
-        st.success("✅ Excel file generated successfully!")
+        with st.spinner("Generating Excel file..."):
+            exporter = ExcelExporter()
+            excel_file = exporter.export_candidates(st.session_state.processed_candidates)
+            
+            timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"resume_analysis_{timestamp}.xlsx"
+            
+            st.download_button(
+                label="📥 Download Excel Report",
+                data=excel_file,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+            st.success("✅ Excel file generated successfully! Click the download button above.")
         
     except Exception as e:
         st.error(f"❌ Error generating Excel file: {str(e)}")
+        with st.expander("Error Details"):
+            st.code(traceback.format_exc())
 
 if __name__ == "__main__":
     main()
