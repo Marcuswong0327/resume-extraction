@@ -32,7 +32,7 @@ class AIParser:
         try:
             test_payload = {
                 # Changed the model name to the specific OpenRouter format
-                "model": "deepseek/deepseek-chat-v3-0324:free",
+                "model": "deepseek/deepseek-r1-0528:free",
                 "messages": [{"role": "user", "content": "Hello"}],
                 "max_tokens": 10,
                 "temperature": 0.1
@@ -334,3 +334,4 @@ Rules:
             "education": [],
             "summary": ""
         }
+
