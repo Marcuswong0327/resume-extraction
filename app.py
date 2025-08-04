@@ -44,13 +44,14 @@ def main():
                 st.error("❌ Google Cloud credentials not found in secrets")
                 st.info("Please add GCP credentials (GCP_TYPE, GCP_PROJECT_ID, GCP_PRIVATE_KEY, GCP_CLIENT_EMAIL, etc.) to your secrets.toml file")
         
-        # DeepSeek API Configuration
-        st.subheader("DeepSeek V3 API")
+        # OpenRouter API Configuration
+        st.subheader("OpenRouter (DeepSeek R1 0528)") # Updated title
         if credentials_status['deepseek_status']:
-            st.success("✅ DeepSeek API key configured")
+            st.success("✅ OpenRouter API key configured")
+            st.info("Using DeepSeek R1 0528 model via OpenRouter") # Updated info
         else:
-            st.error("❌ DeepSeek API key not found in secrets")
-            st.info("Please add 'DEEPSEEK_API_KEY' to your secrets.toml file")
+            st.error("❌ OpenRouter API key not found in secrets")
+            st.info("Please add 'DEEPSEEK_API_KEY' (OpenRouter key) to your secrets.toml file")
     
     # Main content area
     col1, col2 = st.columns([2, 1])
@@ -76,9 +77,14 @@ def main():
             process_disabled = not (credentials_status['gcp_status'] and credentials_status['deepseek_status']) or st.session_state.processing_in_progress
             
             if st.button("🚀 Process Resumes", type="primary", use_container_width=True, disabled=process_disabled):
+                st.write("DEBUG: Button clicked!")
+                st.write(f"DEBUG: GCP status: {credentials_status['gcp_status']}")
+                st.write(f"DEBUG: DeepSeek status: {credentials_status['deepseek_status']}")
+                
                 if not credentials_status['gcp_status'] or not credentials_status['deepseek_status']:
-                    st.error("❌ Please configure both Google Cloud Vision and DeepSeek API credentials before processing.")
+                    st.error("❌ Please configure both Google Cloud Vision and OpenRouter API credentials before processing.")
                 else:
+                    st.write("DEBUG: Starting process_resumes function")
                     process_resumes(uploaded_files)
     
     with col2:
@@ -125,7 +131,7 @@ def check_credentials():
         if all(key in st.secrets for key in required_gcp_keys):
             gcp_status = True
         
-        # Check DeepSeek API key
+        # Check DeepSeek API key (now OpenRouter key)
         if "DEEPSEEK_API_KEY" in st.secrets:
             deepseek_status = True
             
@@ -139,11 +145,15 @@ def check_credentials():
 
 def process_resumes(uploaded_files):
     """Process uploaded resume files"""
+    st.write("DEBUG: process_resumes function started")
+    st.write(f"DEBUG: Number of files to process: {len(uploaded_files)}")
+    
     st.session_state.processing_in_progress = True
     st.session_state.processing_complete = False
     st.session_state.processed_candidates = []
     
     try:
+        st.write("DEBUG: Entering try block")
         # Initialize services with proper error handling
         with st.spinner("Initializing services..."):
             try:
@@ -157,15 +167,27 @@ def process_resumes(uploaded_files):
                     "private_key": st.secrets["GCP_PRIVATE_KEY"].replace('\\n', '\n'),
                     "client_email": st.secrets["GCP_CLIENT_EMAIL"],
                     "client_id": st.secrets["GCP_CLIENT_ID"],
-                    "auth_uri": st.secrets.get("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
-                    "token_uri": st.secrets.get("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
-                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
+                    "auth_uri": st.secrets.get("GCP_AUTH_URI", "[https://accounts.google.com/o/oauth2/auth](https://accounts.google.com/o/oauth2/auth)"),
+                    "token_uri": st.secrets.get("GCP_TOKEN_URI", "[https://oauth2.googleapis.com/token](https://oauth2.googleapis.com/token)"),
+                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL", "[https://www.googleapis.com/oauth2/v1/certs](https://www.googleapis.com/oauth2/v1/certs)"),
                     "client_x509_cert_url": st.secrets.get("GCP_CLIENT_X509_CERT_URL", ""),
                     "universe_domain": st.secrets.get("GCP_UNIVERSE_DOMAIN", "googleapis.com")
                 }
                 
                 ocr_service = OCRService(gcp_credentials)
-                ai_parser = AIParser(st.secrets["DEEPSEEK_API_KEY"])
+                
+                # --- MODIFICATION START ---
+                openrouter_base_url = "[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)"
+                openrouter_model_name = "deepseek/deepseek-r1-0528:free" # Use the specific model name
+                
+                # Initialize AIParser with OpenRouter base URL and model name
+                ai_parser = AIParser(
+                    st.secrets["DEEPSEEK_API_KEY"],
+                    base_url=openrouter_base_url,
+                    model_name=openrouter_model_name
+                )
+                # --- MODIFICATION END ---
+                
                 data_extractor = DataExtractor()
             except Exception as e:
                 st.error(f"❌ Error initializing services: {str(e)}")
