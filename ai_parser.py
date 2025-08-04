@@ -4,20 +4,21 @@ import streamlit as st
 import time
 
 class AIParser:
-    """Handles DeepSeek V3 API integration for intelligent resume parsing"""
+    """Handles OpenRouter API integration for intelligent resume parsing"""
     
     def __init__(self, api_key):
         """
-        Initialize AI parser with DeepSeek API key
+        Initialize AI parser with OpenRouter API key
         
         Args:
-            api_key: DeepSeek V3 API key
+            api_key: OpenRouter API key
         """
         if not api_key:
-            raise ValueError("DeepSeek API key is required")
+            raise ValueError("OpenRouter API key is required")
             
         self.api_key = api_key
-        self.base_url = "https://api.deepseek.com/v1/chat/completions"
+        # Changed the base URL to the OpenRouter endpoint
+        self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -27,10 +28,11 @@ class AIParser:
         self._test_connection()
     
     def _test_connection(self):
-        """Test the DeepSeek API connection"""
+        """Test the OpenRouter API connection"""
         try:
             test_payload = {
-                "model": "deepseek-chat",
+                # Changed the model name to the specific OpenRouter format
+                "model": "deepseek/deepseek-chat-v3-0324:free",
                 "messages": [{"role": "user", "content": "Hello"}],
                 "max_tokens": 10,
                 "temperature": 0.1
@@ -47,11 +49,11 @@ class AIParser:
                 raise Exception(f"API test failed: {response.status_code} - {response.text}")
                 
         except Exception as e:
-            raise Exception(f"DeepSeek API connection test failed: {str(e)}")
+            raise Exception(f"OpenRouter API connection test failed: {str(e)}")
     
     def parse_resume(self, resume_text):
         """
-        Parse resume text using DeepSeek V3 API
+        Parse resume text using OpenRouter API
         
         Args:
             resume_text: Raw text extracted from resume
@@ -66,7 +68,7 @@ class AIParser:
             # Create prompt for resume parsing
             prompt = self._create_parsing_prompt(resume_text)
             
-            # Make API call to DeepSeek with retries
+            # Make API call to OpenRouter with retries
             response = self._make_api_call_with_retry(prompt)
             
             if response:
@@ -138,7 +140,7 @@ Rules:
     
     def _make_api_call_with_retry(self, prompt, max_retries=3):
         """
-        Make API call to DeepSeek V3 with retry logic
+        Make API call to OpenRouter with retry logic
         
         Args:
             prompt: Formatted prompt string
@@ -155,17 +157,17 @@ Rules:
                     
             except Exception as e:
                 if attempt == max_retries - 1:
-                    st.error(f"DeepSeek API failed after {max_retries} attempts: {str(e)}")
+                    st.error(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
                     return None
                 else:
-                    st.warning(f"DeepSeek API attempt {attempt + 1} failed, retrying...")
+                    st.warning(f"OpenRouter API attempt {attempt + 1} failed, retrying...")
                     time.sleep(2 ** attempt)  # Exponential backoff
         
         return None
     
     def _make_api_call(self, prompt):
         """
-        Make API call to DeepSeek V3
+        Make API call to OpenRouter
         
         Args:
             prompt: Formatted prompt string
@@ -175,7 +177,8 @@ Rules:
         """
         try:
             payload = {
-                "model": "deepseek-chat",
+                # Changed the model name to the specific OpenRouter format
+                "model": "deepseek/deepseek-chat-v3-0324:free",
                 "messages": [
                     {
                         "role": "user",
@@ -199,7 +202,7 @@ Rules:
                 content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                 return content
             else:
-                error_msg = f"DeepSeek API error: {response.status_code}"
+                error_msg = f"OpenRouter API error: {response.status_code}"
                 try:
                     error_detail = response.json()
                     error_msg += f" - {error_detail}"
@@ -208,11 +211,11 @@ Rules:
                 raise Exception(error_msg)
                 
         except requests.exceptions.Timeout:
-            raise Exception("DeepSeek API request timed out")
+            raise Exception("OpenRouter API request timed out")
         except requests.exceptions.RequestException as e:
-            raise Exception(f"Network error calling DeepSeek API: {str(e)}")
+            raise Exception(f"Network error calling OpenRouter API: {str(e)}")
         except Exception as e:
-            raise Exception(f"Error calling DeepSeek API: {str(e)}")
+            raise Exception(f"Error calling OpenRouter API: {str(e)}")
     
     def _parse_api_response(self, response_text):
         """
