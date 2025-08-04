@@ -4,35 +4,38 @@ import streamlit as st
 import time
 
 class AIParser:
-    """Handles OpenRouter API integration for intelligent resume parsing"""
+    """Handles AI API integration for intelligent resume parsing, supporting OpenRouter."""
     
-    def __init__(self, api_key):
+    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com/v1/chat/completions", model_name: str = "deepseek-chat"):
         """
-        Initialize AI parser with OpenRouter API key
+        Initialize AI parser with API key, base URL, and model name.
         
         Args:
-            api_key: OpenRouter API key
+            api_key: The API key for the chosen service (e.g., DeepSeek or OpenRouter).
+            base_url: The base URL for the API endpoint.
+            model_name: The specific model name to use (e.g., "deepseek-chat" or "deepseek/deepseek-r1-0528:free").
         """
         if not api_key:
-            raise ValueError("OpenRouter API key is required")
+            raise ValueError("API key is required for AIParser initialization.")
             
         self.api_key = api_key
-        # Changed the base URL to the OpenRouter endpoint
-        self.base_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.base_url = base_url
+        self.model_name = model_name
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         
-        # Test the API connection
+        # Test the API connection during initialization
         self._test_connection()
     
     def _test_connection(self):
-        """Test the OpenRouter API connection"""
+        """
+        Test the API connection using the configured base_url and model_name.
+        """
         try:
             test_payload = {
-                # Changed the model name to the specific OpenRouter format
-                "model": "deepseek/deepseek-r1-0528:free",
+                "model": self.model_name,
                 "messages": [{"role": "user", "content": "Hello"}],
                 "max_tokens": 10,
                 "temperature": 0.1
@@ -46,29 +49,27 @@ class AIParser:
             )
             
             if response.status_code != 200:
+                # Include response text for more detailed error messages
                 raise Exception(f"API test failed: {response.status_code} - {response.text}")
                 
         except Exception as e:
-            raise Exception(f"OpenRouter API connection test failed: {str(e)}")
+            raise Exception(f"API connection test failed: {str(e)}")
     
-    def parse_resume(self, resume_text):
+    def parse_resume(self, resume_text: str):
         """
-        Parse resume text using OpenRouter API
+        Parse resume text using the configured AI API.
         
         Args:
-            resume_text: Raw text extracted from resume
+            resume_text: Raw text extracted from resume.
             
         Returns:
-            Structured resume data as dictionary
+            Structured resume data as dictionary.
         """
         try:
             if not resume_text or not resume_text.strip():
                 return self._create_empty_structure()
             
-            # Create prompt for resume parsing
             prompt = self._create_parsing_prompt(resume_text)
-            
-            # Make API call to OpenRouter with retries
             response = self._make_api_call_with_retry(prompt)
             
             if response:
@@ -80,15 +81,15 @@ class AIParser:
             st.error(f"Error parsing resume with AI: {str(e)}")
             return self._create_empty_structure()
     
-    def _create_parsing_prompt(self, resume_text):
+    def _create_parsing_prompt(self, resume_text: str):
         """
-        Create a structured prompt for resume parsing
+        Create a structured prompt for resume parsing.
         
         Args:
-            resume_text: Raw resume text
+            resume_text: Raw resume text.
             
         Returns:
-            Formatted prompt string
+            Formatted prompt string.
         """
         # Truncate text if too long to avoid token limits
         max_chars = 15000
@@ -138,16 +139,16 @@ Rules:
 """
         return prompt
     
-    def _make_api_call_with_retry(self, prompt, max_retries=3):
+    def _make_api_call_with_retry(self, prompt: str, max_retries: int = 3):
         """
-        Make API call to OpenRouter with retry logic
+        Make API call with retry logic using exponential backoff.
         
         Args:
-            prompt: Formatted prompt string
-            max_retries: Maximum number of retry attempts
+            prompt: Formatted prompt string.
+            max_retries: Maximum number of retry attempts.
             
         Returns:
-            API response content or None
+            API response content or None.
         """
         for attempt in range(max_retries):
             try:
@@ -157,28 +158,27 @@ Rules:
                     
             except Exception as e:
                 if attempt == max_retries - 1:
-                    st.error(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
+                    st.error(f"AI API failed after {max_retries} attempts: {str(e)}")
                     return None
                 else:
-                    st.warning(f"OpenRouter API attempt {attempt + 1} failed, retrying...")
+                    st.warning(f"AI API attempt {attempt + 1} failed, retrying...")
                     time.sleep(2 ** attempt)  # Exponential backoff
         
         return None
     
-    def _make_api_call(self, prompt):
+    def _make_api_call(self, prompt: str):
         """
-        Make API call to OpenRouter
+        Make a single API call to the configured AI endpoint.
         
         Args:
-            prompt: Formatted prompt string
+            prompt: Formatted prompt string.
             
         Returns:
-            API response content or None
+            API response content or None.
         """
         try:
             payload = {
-                # Changed the model name to the specific OpenRouter format
-                "model": "deepseek/deepseek-chat-v3-0324:free",
+                "model": self.model_name, # Use the dynamic model name
                 "messages": [
                     {
                         "role": "user",
@@ -202,7 +202,7 @@ Rules:
                 content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                 return content
             else:
-                error_msg = f"OpenRouter API error: {response.status_code}"
+                error_msg = f"AI API error: {response.status_code}"
                 try:
                     error_detail = response.json()
                     error_msg += f" - {error_detail}"
@@ -211,24 +211,23 @@ Rules:
                 raise Exception(error_msg)
                 
         except requests.exceptions.Timeout:
-            raise Exception("OpenRouter API request timed out")
+            raise Exception("AI API request timed out")
         except requests.exceptions.RequestException as e:
-            raise Exception(f"Network error calling OpenRouter API: {str(e)}")
+            raise Exception(f"Network error calling AI API: {str(e)}")
         except Exception as e:
-            raise Exception(f"Error calling OpenRouter API: {str(e)}")
+            raise Exception(f"Error calling AI API: {str(e)}")
     
-    def _parse_api_response(self, response_text):
+    def _parse_api_response(self, response_text: str):
         """
-        Parse API response and extract JSON data
+        Parse API response and extract JSON data.
         
         Args:
-            response_text: Raw response text from API
+            response_text: Raw response text from API.
             
         Returns:
-            Parsed JSON data as dictionary
+            Parsed JSON data as dictionary.
         """
         try:
-            # Try to find JSON in the response
             response_text = response_text.strip()
             
             # Remove any markdown code block markers
@@ -242,7 +241,6 @@ Rules:
             
             response_text = response_text.strip()
             
-            # Try to find JSON object in the text
             start_idx = response_text.find('{')
             end_idx = response_text.rfind('}')
             
@@ -250,10 +248,8 @@ Rules:
                 json_text = response_text[start_idx:end_idx + 1]
                 parsed_data = json.loads(json_text)
             else:
-                # Try parsing the entire text
                 parsed_data = json.loads(response_text)
             
-            # Validate structure
             return self._validate_parsed_data(parsed_data)
             
         except json.JSONDecodeError as e:
@@ -265,17 +261,16 @@ Rules:
             st.warning(f"Error processing AI response: {str(e)}")
             return self._create_empty_structure()
     
-    def _validate_parsed_data(self, data):
+    def _validate_parsed_data(self, data: dict):
         """
-        Validate and clean parsed data structure
+        Validate and clean parsed data structure.
         
         Args:
-            data: Parsed data dictionary
+            data: Parsed data dictionary.
             
         Returns:
-            Validated and cleaned data dictionary
+            Validated and cleaned data dictionary.
         """
-        # Ensure all required fields exist
         validated_data = {
             "name": str(data.get("name", "")).strip(),
             "email": str(data.get("email", "")).strip(),
@@ -286,11 +281,9 @@ Rules:
             "summary": str(data.get("summary", "")).strip()
         }
         
-        # Validate skills array
         if isinstance(data.get("skills"), list):
             validated_data["skills"] = [str(skill).strip() for skill in data["skills"] if str(skill).strip()]
         
-        # Validate experience array
         if isinstance(data.get("experience"), list):
             for exp in data["experience"]:
                 if isinstance(exp, dict):
@@ -300,10 +293,9 @@ Rules:
                         "duration": str(exp.get("duration", "")).strip(),
                         "description": str(exp.get("description", "")).strip()
                     }
-                    if any(validated_exp.values()):  # Only add if at least one field has content
+                    if any(validated_exp.values()):
                         validated_data["experience"].append(validated_exp)
         
-        # Validate education array
         if isinstance(data.get("education"), list):
             for edu in data["education"]:
                 if isinstance(edu, dict):
@@ -313,17 +305,17 @@ Rules:
                         "field": str(edu.get("field", "")).strip(),
                         "year": str(edu.get("year", "")).strip()
                     }
-                    if any(validated_edu.values()):  # Only add if at least one field has content
+                    if any(validated_edu.values()):
                         validated_data["education"].append(validated_edu)
         
         return validated_data
     
     def _create_empty_structure(self):
         """
-        Create empty data structure for failed parsing
+        Create empty data structure for failed parsing.
         
         Returns:
-            Empty data structure dictionary
+            Empty data structure dictionary.
         """
         return {
             "name": "",
@@ -334,4 +326,3 @@ Rules:
             "education": [],
             "summary": ""
         }
-
