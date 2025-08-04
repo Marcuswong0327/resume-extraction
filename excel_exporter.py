@@ -2,6 +2,7 @@ import pandas as pd
 import io
 from typing import List, Dict, Any
 import streamlit as st
+from datetime import datetime
 
 class ExcelExporter:
     """Handles exporting candidate data to Excel format"""
@@ -20,6 +21,9 @@ class ExcelExporter:
             Excel file as bytes
         """
         try:
+            if not candidates_data:
+                raise ValueError("No candidate data to export")
+            
             # Create Excel writer object
             output = io.BytesIO()
             
@@ -32,6 +36,9 @@ class ExcelExporter:
                 
                 # Create skills analysis sheet
                 self._create_skills_analysis_sheet(candidates_data, writer)
+                
+                # Create comparison sheet
+                self._create_comparison_sheet(candidates_data, writer)
             
             output.seek(0)
             return output.getvalue()
@@ -51,15 +58,22 @@ class ExcelExporter:
         summary_data = []
         
         for i, candidate in enumerate(candidates_data, 1):
+            # Get skills as comma-separated string
+            skills = candidate.get('skills', [])
+            skills_str = ', '.join(skills[:10])  # Limit to first 10 skills for readability
+            if len(skills) > 10:
+                skills_str += f" (and {len(skills) - 10} more)"
+            
             summary_row = {
                 'Candidate_ID': i,
                 'Name': candidate.get('name', 'N/A'),
                 'Email': candidate.get('email', 'N/A'),
                 'Phone': candidate.get('phone', 'N/A'),
-                'Total_Skills': len(candidate.get('skills', [])),
+                'Total_Skills': len(skills),
+                'Top_Skills': skills_str,
                 'Work_Experience_Count': len(candidate.get('experience', [])),
                 'Education_Count': len(candidate.get('education', [])),
-                'Top_Skills': ', '.join(candidate.get('skills', [])[:5]),  # Top 5 skills
+                'Has_Summary': 'Yes' if candidate.get('summary', '').strip() else 'No',
                 'Source_File': candidate.get('filename', 'N/A')
             }
             summary_data.append(summary_row)
@@ -68,18 +82,7 @@ class ExcelExporter:
         summary_df.to_excel(writer, sheet_name='Summary', index=False)
         
         # Auto-adjust column widths
-        worksheet = writer.sheets['Summary']
-        for column in worksheet.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            worksheet.column_dimensions[column_letter].width = adjusted_width
+        self._adjust_column_widths(writer.sheets['Summary'])
     
     def _create_detailed_sheets(self, candidates_data: List[Dict], writer):
         """
@@ -93,73 +96,73 @@ class ExcelExporter:
             try:
                 sheet_name = f"Candidate_{i}"
                 if len(sheet_name) > 31:  # Excel sheet name limit
-                    sheet_name = f"Candidate_{i}"[:31]
+                    sheet_name = f"C_{i}"
                 
                 # Prepare detailed data
-                detailed_data = {
-                    'Field': [],
-                    'Value': []
-                }
+                detailed_data = []
                 
                 # Basic information
-                detailed_data['Field'].extend([
-                    'Name', 'Email', 'Phone', 'Source File', 'Summary'
-                ])
-                detailed_data['Value'].extend([
-                    candidate.get('name', 'N/A'),
-                    candidate.get('email', 'N/A'),
-                    candidate.get('phone', 'N/A'),
-                    candidate.get('filename', 'N/A'),
-                    candidate.get('summary', 'N/A')
-                ])
+                basic_info = [
+                    {'Category': 'Personal Info', 'Field': 'Name', 'Value': candidate.get('name', 'N/A')},
+                    {'Category': 'Personal Info', 'Field': 'Email', 'Value': candidate.get('email', 'N/A')},
+                    {'Category': 'Personal Info', 'Field': 'Phone', 'Value': candidate.get('phone', 'N/A')},
+                    {'Category': 'Personal Info', 'Field': 'Source File', 'Value': candidate.get('filename', 'N/A')},
+                ]
+                detailed_data.extend(basic_info)
+                
+                # Summary
+                if candidate.get('summary', '').strip():
+                    detailed_data.append({
+                        'Category': 'Summary', 
+                        'Field': 'Professional Summary', 
+                        'Value': candidate.get('summary', 'N/A')
+                    })
                 
                 # Skills
                 skills = candidate.get('skills', [])
                 if skills:
-                    detailed_data['Field'].append('Skills')
-                    detailed_data['Value'].append('; '.join(skills))
+                    detailed_data.append({
+                        'Category': 'Skills', 
+                        'Field': 'All Skills', 
+                        'Value': '; '.join(skills)
+                    })
                 
                 # Work Experience
-                experience = candidate.get('experience_formatted', candidate.get('experience', []))
+                experience = candidate.get('experience', [])
                 if experience:
                     for j, exp in enumerate(experience, 1):
-                        detailed_data['Field'].append(f'Work Experience {j}')
                         if isinstance(exp, dict):
-                            exp_text = f"{exp.get('position', '')} at {exp.get('company', '')} ({exp.get('duration', '')})"
-                            if exp.get('description'):
-                                exp_text += f" - {exp.get('description')}"
-                            detailed_data['Value'].append(exp_text)
+                            exp_text = self._format_experience_for_excel(exp)
                         else:
-                            detailed_data['Value'].append(str(exp))
+                            exp_text = str(exp)
+                        
+                        detailed_data.append({
+                            'Category': 'Experience', 
+                            'Field': f'Job {j}', 
+                            'Value': exp_text
+                        })
                 
                 # Education
-                education = candidate.get('education_formatted', candidate.get('education', []))
+                education = candidate.get('education', [])
                 if education:
                     for j, edu in enumerate(education, 1):
-                        detailed_data['Field'].append(f'Education {j}')
                         if isinstance(edu, dict):
-                            edu_text = f"{edu.get('degree', '')} in {edu.get('field', '')} from {edu.get('institution', '')} ({edu.get('year', '')})"
-                            detailed_data['Value'].append(edu_text)
+                            edu_text = self._format_education_for_excel(edu)
                         else:
-                            detailed_data['Value'].append(str(edu))
+                            edu_text = str(edu)
+                        
+                        detailed_data.append({
+                            'Category': 'Education', 
+                            'Field': f'Education {j}', 
+                            'Value': edu_text
+                        })
                 
                 # Create DataFrame and export
                 detailed_df = pd.DataFrame(detailed_data)
                 detailed_df.to_excel(writer, sheet_name=sheet_name, index=False)
                 
                 # Auto-adjust column widths
-                worksheet = writer.sheets[sheet_name]
-                for column in worksheet.columns:
-                    max_length = 0
-                    column_letter = column[0].column_letter
-                    for cell in column:
-                        try:
-                            if len(str(cell.value)) > max_length:
-                                max_length = len(str(cell.value))
-                        except:
-                            pass
-                    adjusted_width = min(max_length + 2, 80)
-                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                self._adjust_column_widths(writer.sheets[sheet_name])
                     
             except Exception as e:
                 st.warning(f"Error creating detailed sheet for candidate {i}: {str(e)}")
@@ -176,14 +179,9 @@ class ExcelExporter:
         try:
             # Aggregate all skills
             skills_count = {}
-            candidate_skills = {}
             
-            for i, candidate in enumerate(candidates_data, 1):
-                candidate_name = candidate.get('name', f'Candidate {i}')
+            for candidate in candidates_data:
                 skills = candidate.get('skills', [])
-                
-                candidate_skills[candidate_name] = skills
-                
                 for skill in skills:
                     if skill in skills_count:
                         skills_count[skill] += 1
@@ -192,43 +190,34 @@ class ExcelExporter:
             
             # Create skills frequency data
             skills_frequency_data = []
+            total_candidates = len(candidates_data)
+            
             for skill, count in sorted(skills_count.items(), key=lambda x: x[1], reverse=True):
-                percentage = (count / len(candidates_data)) * 100
+                percentage = (count / total_candidates) * 100
                 skills_frequency_data.append({
                     'Skill': skill,
-                    'Candidates_Count': count,
-                    'Percentage': f"{percentage:.1f}%"
+                    'Candidate_Count': count,
+                    'Total_Candidates': total_candidates,
+                    'Percentage': f"{percentage:.1f}%",
+                    'Frequency_Score': round(percentage, 1)
                 })
             
             skills_df = pd.DataFrame(skills_frequency_data)
             skills_df.to_excel(writer, sheet_name='Skills_Analysis', index=False)
             
             # Auto-adjust column widths
-            worksheet = writer.sheets['Skills_Analysis']
-            for column in worksheet.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = min(max_length + 2, 40)
-                worksheet.column_dimensions[column_letter].width = adjusted_width
+            self._adjust_column_widths(writer.sheets['Skills_Analysis'])
                 
         except Exception as e:
             st.warning(f"Error creating skills analysis sheet: {str(e)}")
     
-    def create_candidate_comparison_report(self, candidates_data: List[Dict]) -> pd.DataFrame:
+    def _create_comparison_sheet(self, candidates_data: List[Dict], writer):
         """
-        Create a comparison report DataFrame for candidates
+        Create comparison sheet for candidate evaluation
         
         Args:
             candidates_data: List of candidate data
-            
-        Returns:
-            DataFrame with comparison data
+            writer: Excel writer object
         """
         try:
             comparison_data = []
@@ -238,77 +227,161 @@ class ExcelExporter:
                 experience = candidate.get('experience', [])
                 education = candidate.get('education', [])
                 
+                # Calculate some metrics
+                programming_skills = self._count_programming_skills(skills)
+                has_degree = any('bachelor' in str(edu).lower() or 'master' in str(edu).lower() 
+                               or 'phd' in str(edu).lower() for edu in education)
+                
                 comparison_row = {
+                    'Rank': i,
                     'Candidate_ID': i,
                     'Name': candidate.get('name', 'N/A'),
                     'Email': candidate.get('email', 'N/A'),
                     'Phone': candidate.get('phone', 'N/A'),
                     'Total_Skills': len(skills),
-                    'Programming_Skills': len([s for s in skills if any(tech in s.lower() for tech in ['python', 'java', 'javascript', 'c++', 'c#'])]),
-                    'Years_Experience': self._estimate_experience_years(experience),
-                    'Education_Level': self._get_highest_education_level(education),
+                    'Programming_Skills': programming_skills,
+                    'Experience_Entries': len(experience),
+                    'Education_Entries': len(education),
+                    'Has_Degree': 'Yes' if has_degree else 'No',
                     'Has_Contact_Info': 'Yes' if candidate.get('email') or candidate.get('phone') else 'No',
+                    'Has_Summary': 'Yes' if candidate.get('summary', '').strip() else 'No',
+                    'Completeness_Score': self._calculate_completeness_score(candidate),
                     'Source_File': candidate.get('filename', 'N/A')
                 }
                 comparison_data.append(comparison_row)
             
-            return pd.DataFrame(comparison_data)
+            # Sort by completeness score
+            comparison_data.sort(key=lambda x: x['Completeness_Score'], reverse=True)
+            
+            # Update rank after sorting
+            for i, row in enumerate(comparison_data, 1):
+                row['Rank'] = i
+            
+            comparison_df = pd.DataFrame(comparison_data)
+            comparison_df.to_excel(writer, sheet_name='Comparison', index=False)
+            
+            # Auto-adjust column widths
+            self._adjust_column_widths(writer.sheets['Comparison'])
             
         except Exception as e:
-            st.error(f"Error creating comparison report: {str(e)}")
-            return pd.DataFrame()
+            st.warning(f"Error creating comparison sheet: {str(e)}")
     
-    def _estimate_experience_years(self, experience_list: List) -> str:
-        """
-        Estimate years of experience from experience entries
+    def _format_experience_for_excel(self, exp_dict: Dict) -> str:
+        """Format experience dictionary for Excel display"""
+        parts = []
         
-        Args:
-            experience_list: List of experience entries
-            
-        Returns:
-            Estimated experience as string
-        """
-        if not experience_list:
-            return "N/A"
+        position = exp_dict.get('position', '').strip()
+        company = exp_dict.get('company', '').strip()
+        duration = exp_dict.get('duration', '').strip()
+        description = exp_dict.get('description', '').strip()
         
-        # Simple heuristic: assume each job is 2-3 years average
-        estimated_years = len(experience_list) * 2.5
-        return f"~{estimated_years:.0f} years"
+        if position and company:
+            parts.append(f"{position} at {company}")
+        elif position:
+            parts.append(position)
+        elif company:
+            parts.append(company)
+        
+        if duration:
+            parts.append(f"Duration: {duration}")
+        
+        if description:
+            if len(description) > 300:
+                description = description[:300] + "..."
+            parts.append(f"Description: {description}")
+        
+        return " | ".join(parts) if parts else "N/A"
     
-    def _get_highest_education_level(self, education_list: List) -> str:
-        """
-        Determine highest education level
+    def _format_education_for_excel(self, edu_dict: Dict) -> str:
+        """Format education dictionary for Excel display"""
+        parts = []
         
-        Args:
-            education_list: List of education entries
-            
-        Returns:
-            Highest education level as string
-        """
-        if not education_list:
-            return "N/A"
+        degree = edu_dict.get('degree', '').strip()
+        field = edu_dict.get('field', '').strip()
+        institution = edu_dict.get('institution', '').strip()
+        year = edu_dict.get('year', '').strip()
         
-        education_levels = {
-            'phd': 5, 'doctorate': 5, 'ph.d': 5,
-            'master': 4, "master's": 4, 'mba': 4, 'ms': 4, 'ma': 4,
-            'bachelor': 3, "bachelor's": 3, 'bs': 3, 'ba': 3, 'bsc': 3,
-            'associate': 2, 'diploma': 1, 'certificate': 1
-        }
+        if degree and field:
+            parts.append(f"{degree} in {field}")
+        elif degree:
+            parts.append(degree)
+        elif field:
+            parts.append(field)
         
-        highest_level = 0
-        highest_degree = "Unknown"
+        if institution:
+            parts.append(f"from {institution}")
         
-        for edu in education_list:
-            if isinstance(edu, dict):
-                degree = edu.get('degree', '').lower()
-            else:
-                degree = str(edu).lower()
-            
-            for level_name, level_value in education_levels.items():
-                if level_name in degree:
-                    if level_value > highest_level:
-                        highest_level = level_value
-                        highest_degree = level_name.title()
-                    break
+        if year:
+            parts.append(f"({year})")
         
-        return highest_degree if highest_level > 0 else "N/A"
+        return " ".join(parts) if parts else "N/A"
+    
+    def _count_programming_skills(self, skills: List[str]) -> int:
+        """Count programming-related skills"""
+        programming_keywords = [
+            'python', 'java', 'javascript', 'c++', 'c#', 'php', 'ruby', 'go', 'rust',
+            'typescript', 'swift', 'kotlin', 'scala', 'r', 'matlab', 'sql', 'html', 'css'
+        ]
+        
+        count = 0
+        for skill in skills:
+            if any(keyword in skill.lower() for keyword in programming_keywords):
+                count += 1
+        
+        return count
+    
+    def _calculate_completeness_score(self, candidate: Dict) -> float:
+        """Calculate a completeness score for the candidate (0-100)"""
+        score = 0
+        
+        # Name (20 points)
+        if candidate.get('name', '').strip():
+            score += 20
+        
+        # Contact info (20 points)
+        if candidate.get('email', '').strip():
+            score += 10
+        if candidate.get('phone', '').strip():
+            score += 10
+        
+        # Skills (20 points)
+        skills_count = len(candidate.get('skills', []))
+        if skills_count > 0:
+            score += min(20, skills_count * 2)  # 2 points per skill, max 20
+        
+        # Experience (20 points)
+        experience_count = len(candidate.get('experience', []))
+        if experience_count > 0:
+            score += min(20, experience_count * 5)  # 5 points per experience, max 20
+        
+        # Education (10 points)
+        education_count = len(candidate.get('education', []))
+        if education_count > 0:
+            score += min(10, education_count * 5)  # 5 points per education, max 10
+        
+        # Summary (10 points)
+        if candidate.get('summary', '').strip():
+            score += 10
+        
+        return round(score, 1)
+    
+    def _adjust_column_widths(self, worksheet):
+        """Auto-adjust column widths for better readability"""
+        try:
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                
+                # Set width with some padding, but cap at reasonable maximum
+                adjusted_width = min(max_length + 2, 100)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+        except Exception as e:
+            pass  # Ignore errors in column width adjustment
