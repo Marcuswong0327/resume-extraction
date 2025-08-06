@@ -54,7 +54,7 @@ class AIParser:
                 headers=self.headers,
                 json=test_payload,
                 timeout=10,
-                verify=False
+                verify=self.ca_bundle_path if self.ca_bundle_path else True
             )
 
             if response.status_code != 200:
@@ -268,6 +268,7 @@ Rules:
             "education": [],
             "summary": ""
         }
+
 
 
 
