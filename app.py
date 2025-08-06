@@ -178,7 +178,7 @@ def process_resumes(uploaded_files):
                 
                 # --- MODIFICATION START ---
                 openrouter_base_url = "[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)"
-                openrouter_model_name = "deepseek/deepseek-r1-0528:free" # Use the specific model name
+                openrouter_model_name = "deepseek/deepseek-chat-v3-0324" # Use the specific model name
                 
                 # Initialize AIParser with OpenRouter base URL and model name
                 ai_parser = AIParser(
@@ -378,3 +378,4 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
