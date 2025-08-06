@@ -9,7 +9,7 @@ import certifi
 class AIParser:
     """Handles AI API integration for intelligent resume parsing, supporting OpenRouter."""
 
-    def __init__(self, api_key: str, base_url: str = "https://api.deepseek.com/v1/chat/completions", model_name: str = "deepseek/deepseek-chat-v3-0324"):
+    def __init__(self, api_key: str, base_url: str = "https://openrouter.ai/api/v1/chat/completions", model_name: str = "deepseek/deepseek-chat-v3-0324"):
         if not api_key:
             raise ValueError("API key is required for AIParser initialization.")
 
@@ -268,5 +268,6 @@ Rules:
             "education": [],
             "summary": ""
         }
+
 
 
