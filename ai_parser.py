@@ -39,7 +39,7 @@ class AIParser:
             st.write("DEBUG: Could not get requests version or system info.")
 
         self._test_connection()
-        https://github.com/Marcuswong0327/resume-extraction/tree/main
+        
     def _test_connection(self):
         try:
             test_payload = {
@@ -268,6 +268,7 @@ Rules:
             "education": [],
             "summary": ""
         }
+
 
 
 
