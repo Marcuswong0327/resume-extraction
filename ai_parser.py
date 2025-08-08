@@ -4,66 +4,65 @@ import streamlit as st
 import time
 import sys
 import platform
-import certifi
+import re
+
 
 class AIParser:
     """Handles AI API integration for intelligent resume parsing, supporting OpenRouter."""
 
-    def __init__(self, api_key: str, base_url: str = "https://openrouter.ai/api/v1/chat/completions", model_name: str = "deepseek/deepseek-chat-v3-0324"):
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "https://openrouter.ai/api/v1/chat/completions",
+        model_name: str = "deepseek/deepseek-chat-v3-0324"
+    ):
         if not api_key:
             raise ValueError("API key is required for AIParser initialization.")
 
         self.api_key = api_key
-        self.base_url = base_url
+        self.base_url = base_url.rstrip("/")  # ensure no trailing slash
         self.model_name = model_name
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            # Change this if OpenRouter rejects localhost
             "HTTP-Referer": "http://localhost",
             "X-Title": "Resume Parser"
         }
 
-        try:
-            self.ca_bundle_path = certifi.where()
-            st.write(f"DEBUG: certifi CA bundle path: {self.ca_bundle_path}")
-        except Exception as e:
-            st.warning(f"WARNING: Could not determine certifi CA bundle path: {e}. HTTPS verification might fail.")
-            self.ca_bundle_path = None
-
+        # Debug environment info
         st.write(f"DEBUG: Initializing AIParser with base_url: {self.base_url}, model: {self.model_name}")
-        try:
-            st.write(f"DEBUG: requests library version: {requests.__version__}")
-            st.write(f"DEBUG: Python version: {sys.version}")
-            st.write(f"DEBUG: Platform: {platform.platform()}")
-        except AttributeError:
-            st.write("DEBUG: Could not get requests version or system info.")
+        st.write(f"DEBUG: requests library version: {requests.__version__}")
+        st.write(f"DEBUG: Python version: {sys.version}")
+        st.write(f"DEBUG: Platform: {platform.platform()}")
 
-        self._test_connection()
-        
-    def _test_connection(self):
+    def test_connection(self):
+        """Optional API test. Call this manually if you want to verify connectivity."""
         try:
             test_payload = {
                 "model": self.model_name,
                 "messages": [{"role": "user", "content": "Hello"}],
-                "max_tokens": 10,
-                "temperature": 0.1
+                "max_tokens": 1,
+                "temperature": 0
             }
 
             response = requests.post(
                 self.base_url,
                 headers=self.headers,
                 json=test_payload,
-                timeout=10,
-                verify=self.ca_bundle_path if self.ca_bundle_path else True
+                timeout=10
             )
 
             if response.status_code != 200:
                 raise Exception(f"API test failed: {response.status_code} - {response.text}")
+            st.success("API connection successful ✅")
 
         except Exception as e:
-            raise Exception(f"API connection test failed: {str(e)}")
+            st.error(f"API connection test failed: {str(e)}")
+            raise
 
     def parse_resume(self, resume_text: str):
+        """Main parsing function."""
         try:
             if not resume_text or not resume_text.strip():
                 return self._create_empty_structure()
@@ -81,11 +80,12 @@ class AIParser:
             return self._create_empty_structure()
 
     def _create_parsing_prompt(self, resume_text: str):
+        """Prepare prompt for LLM."""
         max_chars = 15000
         if len(resume_text) > max_chars:
             resume_text = resume_text[:max_chars] + "..."
 
-        prompt = f"""
+        return f"""
 You are an expert resume parser. Analyze the following resume text and extract structured information in JSON format.
 
 Resume Text:
@@ -117,92 +117,55 @@ Please extract and return ONLY a valid JSON object with the following structure:
 }}
 
 Rules:
-1. Return ONLY valid JSON, no additional text or explanations
-2. If information is not found, use empty string "" or empty array []
-3. Extract all skills mentioned throughout the resume
-4. Include all work experience entries with as much detail as possible
-5. Include all education entries found
-6. Be thorough and accurate in extraction
-7. For skills, include both technical and soft skills
-8. For experience, capture company names, positions, and durations accurately
+1. Return ONLY valid JSON, no extra text
+2. Use "" or [] for missing values
+3. Extract all skills, technical + soft
+4. Include all experience & education entries
 """
-        return prompt
 
     def _make_api_call_with_retry(self, prompt: str, max_retries: int = 3):
+        """Retry wrapper for API call."""
         for attempt in range(max_retries):
             try:
-                response = self._make_api_call(prompt)
-                if response:
-                    return response
-
+                return self._make_api_call(prompt)
             except Exception as e:
                 if attempt == max_retries - 1:
                     st.error(f"AI API failed after {max_retries} attempts: {str(e)}")
                     return None
                 else:
-                    st.warning(f"AI API attempt {attempt + 1} failed, retrying...")
-                    time.sleep(2 ** attempt)
-
+                    st.warning(f"AI API attempt {attempt + 1} failed: {e}. Retrying...")
+                    time.sleep(1.5 * (attempt + 1))
         return None
 
     def _make_api_call(self, prompt: str):
-        try:
-            payload = {
-                "model": self.model_name,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": 3000,
-                "temperature": 0.1,
-                "stream": False
-            }
+        """Actual API request."""
+        payload = {
+            "model": self.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 3000,
+            "temperature": 0.1
+        }
 
-            response = requests.post(
-                self.base_url,
-                headers=self.headers,
-                json=payload,
-                timeout=60,
-                verify=self.ca_bundle_path if self.ca_bundle_path else True
-            )
+        response = requests.post(
+            self.base_url,
+            headers=self.headers,
+            json=payload,
+            timeout=60
+        )
 
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            else:
-                error_msg = f"AI API error: {response.status_code}"
-                try:
-                    error_detail = response.json()
-                    error_msg += f" - {error_detail}"
-                except:
-                    error_msg += f" - {response.text}"
-                raise Exception(error_msg)
-
-        except requests.exceptions.Timeout:
-            raise Exception("AI API request timed out")
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Network error calling AI API: {str(e)}")
-        except Exception as e:
-            raise Exception(f"Error calling AI API: {str(e)}")
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        else:
+            raise Exception(f"API error: {response.status_code} - {response.text}")
 
     def _parse_api_response(self, response_text: str):
+        """Extract and validate JSON from LLM response."""
         try:
-            response_text = response_text.strip()
-
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            elif response_text.startswith("```"):
-                response_text = response_text[3:]
-
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-
-            response_text = response_text.strip()
-
-            start_idx = response_text.find('{')
-            end_idx = response_text.rfind('}')
-
-            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                json_text = response_text[start_idx:end_idx + 1]
+            # Extract JSON with regex to avoid slicing errors
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
+            if json_match:
+                json_text = json_match.group(0)
                 parsed_data = json.loads(json_text)
             else:
                 parsed_data = json.loads(response_text)
@@ -211,14 +174,11 @@ Rules:
 
         except json.JSONDecodeError as e:
             st.warning(f"Failed to parse AI response as JSON: {str(e)}")
-            st.text("Raw response:")
             st.code(response_text)
-            return self._create_empty_structure()
-        except Exception as e:
-            st.warning(f"Error processing AI response: {str(e)}")
             return self._create_empty_structure()
 
     def _validate_parsed_data(self, data: dict):
+        """Ensure parsed data matches expected structure."""
         validated_data = {
             "name": str(data.get("name", "")).strip(),
             "email": str(data.get("email", "")).strip(),
@@ -259,6 +219,7 @@ Rules:
         return validated_data
 
     def _create_empty_structure(self):
+        """Fallback empty structure."""
         return {
             "name": "",
             "email": "",
@@ -268,10 +229,3 @@ Rules:
             "education": [],
             "summary": ""
         }
-
-
-
-
-
-
-
