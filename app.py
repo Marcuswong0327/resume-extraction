@@ -2,7 +2,11 @@ import streamlit as st
 import pandas as pd
 import json
 import traceback
+import os
+import magic
+from io import BytesIO
 from pdf_processor import PDFProcessor
+from word_processor import WordProcessor
 from ocr_service import OCRService
 from ai_parser import AIParser
 from data_extractor import DataExtractor
@@ -16,7 +20,7 @@ def main():
     )
     
     st.title("📄 Resume Parser & Analyzer")
-    st.markdown("Upload multiple PDF resumes to extract and analyze candidate information using AI-powered parsing.")
+    st.markdown("Upload multiple PDF and Word resumes to extract candidate information using AI-powered parsing.")
     
     # Initialize session state
     if 'processed_candidates' not in st.session_state:
@@ -25,6 +29,8 @@ def main():
         st.session_state.processing_complete = False
     if 'processing_in_progress' not in st.session_state:
         st.session_state.processing_in_progress = False
+    if 'excel_data' not in st.session_state:
+        st.session_state.excel_data = None
     
     # Check credentials availability
     credentials_status = check_credentials()
@@ -42,16 +48,24 @@ def main():
                     st.info(f"Project ID: {st.secrets['GCP_PROJECT_ID']}")
             else:
                 st.error("❌ Google Cloud credentials not found in secrets")
-                st.info("Please add GCP credentials (GCP_TYPE, GCP_PROJECT_ID, GCP_PRIVATE_KEY, GCP_CLIENT_EMAIL, etc.) to your secrets.toml file")
+                st.info("Please add GCP credentials to your secrets.toml file")
         
         # OpenRouter API Configuration
-        st.subheader("OpenRouter (DeepSeek R1 0528)") # Updated title
-        if credentials_status['deepseek_status']:
+        st.subheader("OpenRouter AI Parser")
+        if credentials_status['ai_status']:
             st.success("✅ OpenRouter API key configured")
-            st.info("Using DeepSeek R1 0528 model via OpenRouter") # Updated info
+            st.info("Using DeepSeek model via OpenRouter")
         else:
             st.error("❌ OpenRouter API key not found in secrets")
-            st.info("Please add 'DEEPSEEK_API_KEY' (OpenRouter key) to your secrets.toml file")
+            st.info("Please add 'OPENROUTER_API_KEY' to your secrets.toml file")
+        
+        # Clear processed data button
+        if st.session_state.processed_candidates:
+            if st.button("🗑️ Clear All Data", type="secondary"):
+                st.session_state.processed_candidates = []
+                st.session_state.processing_complete = False
+                st.session_state.excel_data = None
+                st.rerun()
     
     # Main content area
     col1, col2 = st.columns([2, 1])
@@ -59,33 +73,37 @@ def main():
     with col1:
         st.header("📤 Upload Resume Files")
         uploaded_files = st.file_uploader(
-            "Choose PDF files",
-            type=['pdf'],
+            "Choose PDF or Word files",
+            type=['pdf', 'docx', 'doc'],
             accept_multiple_files=True,
-            help="Upload one or more PDF resume files for processing"
+            help="Upload one or more PDF or Word resume files for processing"
         )
         
         if uploaded_files:
             st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
             
-            # Display uploaded files
+            # Display uploaded files with file type validation
             with st.expander("📋 Uploaded Files", expanded=True):
+                valid_files = []
                 for i, file in enumerate(uploaded_files, 1):
-                    st.write(f"{i}. {file.name} ({file.size} bytes)")
+                    file_type = validate_file_type(file)
+                    if file_type:
+                        st.write(f"{i}. {file.name} ({file.size} bytes) - {file_type.upper()}")
+                        valid_files.append(file)
+                    else:
+                        st.error(f"{i}. {file.name} - Invalid file type")
+                
+                if len(valid_files) != len(uploaded_files):
+                    st.warning(f"Only {len(valid_files)} out of {len(uploaded_files)} files are valid")
             
             # Process files button
-            process_disabled = not (credentials_status['gcp_status'] and credentials_status['deepseek_status']) or st.session_state.processing_in_progress
+            process_disabled = not (credentials_status['gcp_status'] and credentials_status['ai_status']) or st.session_state.processing_in_progress
             
             if st.button("🚀 Process Resumes", type="primary", use_container_width=True, disabled=process_disabled):
-                st.write("DEBUG: Button clicked!")
-                st.write(f"DEBUG: GCP status: {credentials_status['gcp_status']}")
-                st.write(f"DEBUG: DeepSeek status: {credentials_status['deepseek_status']}")
-                
-                if not credentials_status['gcp_status'] or not credentials_status['deepseek_status']:
+                if not credentials_status['gcp_status'] or not credentials_status['ai_status']:
                     st.error("❌ Please configure both Google Cloud Vision and OpenRouter API credentials before processing.")
                 else:
-                    st.write("DEBUG: Starting process_resumes function")
-                    process_resumes(uploaded_files)
+                    process_resumes(valid_files)
     
     with col2:
         st.header("📊 Processing Status")
@@ -98,9 +116,19 @@ def main():
             if st.session_state.processing_complete:
                 st.success("✅ All resumes processed successfully!")
                 
-                # Auto-generate Excel file
-                if st.button("📥 Generate Excel Report", type="secondary", use_container_width=True):
-                    generate_and_download_excel()
+                # Download Excel button
+                if st.session_state.excel_data:
+                    st.download_button(
+                        label="📥 Download Excel Report",
+                        data=st.session_state.excel_data,
+                        file_name=f"resume_analysis_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="primary",
+                        use_container_width=True
+                    )
+                else:
+                    if st.button("📥 Generate Excel Report", type="secondary", use_container_width=True):
+                        generate_excel_report()
         else:
             st.info("No candidates processed yet. Upload and process resume files to see results here.")
     
@@ -108,22 +136,51 @@ def main():
     if st.session_state.processed_candidates:
         st.header("👥 Processed Candidates")
         
-        # Create tabs for different views
-        tab1, tab2 = st.tabs(["📋 Summary View", "📄 Detailed View"])
+        # Create summary table
+        display_summary_table()
+
+def validate_file_type(uploaded_file):
+    """Validate uploaded file type"""
+    try:
+        # Reset file pointer
+        uploaded_file.seek(0)
+        file_bytes = uploaded_file.read()
+        uploaded_file.seek(0)  # Reset again for later use
         
-        with tab1:
-            display_summary_view()
+        # Use python-magic to detect file type
+        file_type = magic.from_buffer(file_bytes, mime=True)
         
-        with tab2:
-            display_detailed_view()
+        # Check for supported types
+        if file_type == 'application/pdf':
+            return 'pdf'
+        elif file_type in ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+                          'application/msword']:
+            return 'word'
+        elif uploaded_file.name.lower().endswith(('.pdf', '.docx', '.doc')):
+            # Fallback to file extension if MIME detection fails
+            if uploaded_file.name.lower().endswith('.pdf'):
+                return 'pdf'
+            else:
+                return 'word'
+        
+        return None
+        
+    except Exception as e:
+        st.warning(f"Could not validate file type for {uploaded_file.name}: {str(e)}")
+        # Fallback to file extension
+        if uploaded_file.name.lower().endswith('.pdf'):
+            return 'pdf'
+        elif uploaded_file.name.lower().endswith(('.docx', '.doc')):
+            return 'word'
+        return None
 
 def check_credentials():
     """Check if all required credentials are available in secrets"""
     gcp_status = False
-    deepseek_status = False
+    ai_status = False
     
     try:
-        # Check GCP credentials using the specific naming convention
+        # Check GCP credentials
         required_gcp_keys = [
             "GCP_TYPE", "GCP_PROJECT_ID", "GCP_PRIVATE_KEY", "GCP_CLIENT_EMAIL"
         ]
@@ -131,42 +188,44 @@ def check_credentials():
         if all(key in st.secrets for key in required_gcp_keys):
             gcp_status = True
         
-        # Check DeepSeek API key (now OpenRouter key)
-        if "DEEPSEEK_API_KEY" in st.secrets:
-            deepseek_status = True
+        # Check OpenRouter API key
+        if "OPENROUTER_API_KEY" in st.secrets:
+            ai_status = True
             
     except Exception as e:
         st.error(f"Error checking credentials: {str(e)}")
     
     return {
         'gcp_status': gcp_status,
-        'deepseek_status': deepseek_status
+        'ai_status': ai_status
     }
 
 def process_resumes(uploaded_files):
     """Process uploaded resume files"""
-    st.write("DEBUG: process_resumes function started")
-    st.write(f"DEBUG: Number of files to process: {len(uploaded_files)}")
+    if not uploaded_files:
+        st.warning("No valid files to process")
+        return
     
     st.session_state.processing_in_progress = True
     st.session_state.processing_complete = False
     st.session_state.processed_candidates = []
+    st.session_state.excel_data = None
     
     try:
-        st.write("DEBUG: Entering try block")
-        # Initialize services with proper error handling
+        # Initialize services
         with st.spinner("Initializing services..."):
             try:
                 pdf_processor = PDFProcessor()
+                word_processor = WordProcessor()
                 
-                # Create GCP credentials dictionary using the correct naming convention
+                # Create GCP credentials dictionary
                 gcp_credentials = {
                     "type": st.secrets["GCP_TYPE"],
                     "project_id": st.secrets["GCP_PROJECT_ID"],
-                    "private_key_id": st.secrets["GCP_PRIVATE_KEY_ID"],
+                    "private_key_id": st.secrets.get("GCP_PRIVATE_KEY_ID", ""),
                     "private_key": st.secrets["GCP_PRIVATE_KEY"].replace('\\n', '\n'),
                     "client_email": st.secrets["GCP_CLIENT_EMAIL"],
-                    "client_id": st.secrets["GCP_CLIENT_ID"],
+                    "client_id": st.secrets.get("GCP_CLIENT_ID", ""),
                     "auth_uri": st.secrets.get("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
                     "token_uri": st.secrets.get("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
                     "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
@@ -176,19 +235,10 @@ def process_resumes(uploaded_files):
                 
                 ocr_service = OCRService(gcp_credentials)
                 
-                # --- MODIFICATION START ---
-                openrouter_base_url = "https://openrouter.ai/api/v1/chat/completions"
-                openrouter_model_name = "deepseek/deepseek-chat-v3-0324" # Use the specific model name
-                
-                # Initialize AIParser with OpenRouter base URL and model name
-                ai_parser = AIParser(
-                    st.secrets["DEEPSEEK_API_KEY"],
-                    base_url=openrouter_base_url,
-                    model_name=openrouter_model_name
-                )
-                # --- MODIFICATION END ---
-                
+                # Initialize AIParser with OpenRouter
+                ai_parser = AIParser(st.secrets["OPENROUTER_API_KEY"])
                 data_extractor = DataExtractor()
+                
             except Exception as e:
                 st.error(f"❌ Error initializing services: {str(e)}")
                 st.session_state.processing_in_progress = False
@@ -199,7 +249,7 @@ def process_resumes(uploaded_files):
         with progress_container:
             progress_bar = st.progress(0)
             status_text = st.empty()
-            error_container = st.container()
+            results_container = st.container()
         
         total_files = len(uploaded_files)
         successful_processes = 0
@@ -210,28 +260,42 @@ def process_resumes(uploaded_files):
                 progress_bar.progress(current_progress)
                 status_text.text(f"Processing {uploaded_file.name}... ({i+1}/{total_files})")
                 
-                # Convert PDF to images
-                with st.spinner(f"Converting {uploaded_file.name} to images..."):
-                    images = pdf_processor.pdf_to_images(uploaded_file)
+                # Determine file type and extract text
+                file_type = validate_file_type(uploaded_file)
+                extracted_text = ""
                 
-                if not images:
-                    with error_container:
-                        st.warning(f"⚠️ No images could be extracted from {uploaded_file.name}")
+                if file_type == 'pdf':
+                    # Process PDF file
+                    with st.spinner(f"Converting {uploaded_file.name} to images..."):
+                        images = pdf_processor.pdf_to_images(uploaded_file)
+                    
+                    if not images:
+                        with results_container:
+                            st.warning(f"⚠️ No images could be extracted from {uploaded_file.name}")
+                        continue
+                    
+                    # Extract text using OCR
+                    with st.spinner(f"Extracting text from {uploaded_file.name}..."):
+                        for page_num, image in enumerate(images):
+                            try:
+                                text_from_page = ocr_service.extract_text_from_image(image)
+                                extracted_text += text_from_page + "\n"
+                            except Exception as ocr_error:
+                                with results_container:
+                                    st.warning(f"⚠️ OCR failed for page {page_num + 1} of {uploaded_file.name}: {str(ocr_error)}")
+                
+                elif file_type == 'word':
+                    # Process Word file
+                    with st.spinner(f"Extracting text from {uploaded_file.name}..."):
+                        extracted_text = word_processor.extract_text(uploaded_file)
+                
+                else:
+                    with results_container:
+                        st.error(f"❌ Unsupported file type for {uploaded_file.name}")
                     continue
                 
-                # Extract text using OCR
-                with st.spinner(f"Extracting text from {uploaded_file.name}..."):
-                    extracted_text = ""
-                    for page_num, image in enumerate(images):
-                        try:
-                            text_from_page = ocr_service.extract_text_from_image(image)
-                            extracted_text += text_from_page + "\n"
-                        except Exception as ocr_error:
-                            with error_container:
-                                st.warning(f"⚠️ OCR failed for page {page_num + 1} of {uploaded_file.name}: {str(ocr_error)}")
-                
                 if not extracted_text.strip():
-                    with error_container:
+                    with results_container:
                         st.warning(f"⚠️ No text could be extracted from {uploaded_file.name}")
                     continue
                 
@@ -254,11 +318,11 @@ def process_resumes(uploaded_files):
                 progress_bar.progress((i + 1) / total_files)
                 
                 # Show success for current file
-                with error_container:
+                with results_container:
                     st.success(f"✅ Successfully processed {uploaded_file.name}")
                 
             except Exception as e:
-                with error_container:
+                with results_container:
                     st.error(f"❌ Error processing {uploaded_file.name}: {str(e)}")
                     with st.expander("Error Details"):
                         st.code(traceback.format_exc())
@@ -274,110 +338,57 @@ def process_resumes(uploaded_files):
         # Auto-generate Excel if any candidates were processed
         if st.session_state.processed_candidates:
             st.balloons()
-            with st.spinner("Generating Excel report..."):
-                generate_and_download_excel()
+            generate_excel_report()
         
         st.rerun()
         
     except Exception as e:
-        st.error(f"❌ An unexpected error occurred during processing: {str(e)}")
+        st.error(f"❌ Critical error during processing: {str(e)}")
+        st.session_state.processing_in_progress = False
         with st.expander("Error Details"):
             st.code(traceback.format_exc())
-        st.session_state.processing_in_progress = False
 
-def display_summary_view():
-    """Display summary view of processed candidates"""
-    if not st.session_state.processed_candidates:
-        return
-    
-    # Create summary dataframe
-    summary_data = []
-    for candidate in st.session_state.processed_candidates:
-        summary_data.append({
-            "Name": candidate.get("name", "N/A"),
-            "Email": candidate.get("email", "N/A"),
-            "Phone": candidate.get("phone", "N/A"),
-            "Skills Count": len(candidate.get("skills", [])),
-            "Experience Count": len(candidate.get("experience", [])),
-            "Education Count": len(candidate.get("education", [])),
-            "Source File": candidate.get("filename", "N/A")
-        })
-    
-    df = pd.DataFrame(summary_data)
-    st.dataframe(df, use_container_width=True)
-
-def display_detailed_view():
-    """Display detailed view of processed candidates"""
-    if not st.session_state.processed_candidates:
-        return
-    
-    for i, candidate in enumerate(st.session_state.processed_candidates):
-        with st.expander(f"👤 {candidate.get('name', f'Candidate {i+1}')}", expanded=False):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("📋 Basic Information")
-                st.write(f"**Name:** {candidate.get('name', 'N/A')}")
-                st.write(f"**Email:** {candidate.get('email', 'N/A')}")
-                st.write(f"**Phone:** {candidate.get('phone', 'N/A')}")
-                st.write(f"**Source File:** {candidate.get('filename', 'N/A')}")
-                
-                if candidate.get('summary'):
-                    st.subheader("📝 Summary")
-                    st.write(candidate['summary'])
-                
-                st.subheader("🎓 Education")
-                education = candidate.get('education_formatted', candidate.get('education', []))
-                if education:
-                    for edu in education:
-                        st.write(f"• {edu}")
-                else:
-                    st.write("No education information found")
-            
-            with col2:
-                st.subheader("💼 Work Experience")
-                experience = candidate.get('experience_formatted', candidate.get('experience', []))
-                if experience:
-                    for exp in experience:
-                        st.write(f"• {exp}")
-                else:
-                    st.write("No work experience found")
-                
-                st.subheader("🛠️ Skills")
-                skills = candidate.get('skills', [])
-                if skills:
-                    skills_text = ", ".join(skills)
-                    st.write(skills_text)
-                else:
-                    st.write("No skills found")
-
-def generate_and_download_excel():
-    """Generate and provide download for Excel file"""
+def generate_excel_report():
+    """Generate Excel report from processed candidates"""
     try:
-        with st.spinner("Generating Excel file..."):
+        if not st.session_state.processed_candidates:
+            st.warning("No candidate data to export")
+            return
+        
+        with st.spinner("Generating Excel report..."):
             exporter = ExcelExporter()
-            excel_file = exporter.export_candidates(st.session_state.processed_candidates)
+            excel_data = exporter.export_candidates(st.session_state.processed_candidates)
+            st.session_state.excel_data = excel_data
+            st.success("✅ Excel report generated successfully!")
             
-            timestamp = pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"resume_analysis_{timestamp}.xlsx"
-            
-            st.download_button(
-                label="📥 Download Excel Report",
-                data=excel_file,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-            
-            st.success("✅ Excel file generated successfully! Click the download button above.")
+    except Exception as e:
+        st.error(f"❌ Error generating Excel report: {str(e)}")
+        with st.expander("Error Details"):
+            st.code(traceback.format_exc())
+
+def display_summary_table():
+    """Display summary table of processed candidates"""
+    try:
+        summary_data = []
+        
+        for i, candidate in enumerate(st.session_state.processed_candidates, 1):
+            summary_row = {
+                'ID': i,
+                'First Name': candidate.get('first_name', 'N/A'),
+                'Family Name': candidate.get('family_name', 'N/A'),
+                'Email': candidate.get('email', 'N/A'),
+                'Phone': candidate.get('phone', 'N/A'),
+                'Job Title': candidate.get('job_title', 'N/A'),
+                'Source File': candidate.get('filename', 'N/A')
+            }
+            summary_data.append(summary_row)
+        
+        if summary_data:
+            df = pd.DataFrame(summary_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
         
     except Exception as e:
-        st.error(f"❌ Error generating Excel file: {str(e)}")
-        with st.expander("Error Details"):
-            st.code(traceback.format_exc())
+        st.error(f"Error displaying summary table: {str(e)}")
 
 if __name__ == "__main__":
     main()
-
-
-
