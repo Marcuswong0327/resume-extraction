@@ -10,6 +10,7 @@ from ocr_service import OCRService
 from ai_parser import AIParser
 from data_extractor import DataExtractor
 from excel_exporter import ExcelExporter
+from text_preprocessor import TextPreprocessor
 
 def main():
     st.set_page_config(
@@ -170,7 +171,7 @@ def check_credentials():
             gcp_status = True
         
         # Check OpenRouter API key
-        if "DEEPSEEK_API_KEY" in st.secrets:
+        if "OPENROUTER_API_KEY" in st.secrets:
             ai_status = True
             
     except Exception as e:
@@ -198,6 +199,7 @@ def process_resumes(uploaded_files):
             try:
                 pdf_processor = PDFProcessor()
                 word_processor = WordProcessor()
+                text_preprocessor = TextPreprocessor()
                 
                 # Create GCP credentials dictionary
                 gcp_credentials = {
@@ -217,7 +219,7 @@ def process_resumes(uploaded_files):
                 ocr_service = OCRService(gcp_credentials)
                 
                 # Initialize AIParser with OpenRouter
-                ai_parser = AIParser(st.secrets["DEEPSEEK_API_KEY"])
+                ai_parser = AIParser(st.secrets["OPENROUTER_API_KEY"])
                 data_extractor = DataExtractor()
                 
             except Exception as e:
@@ -241,12 +243,12 @@ def process_resumes(uploaded_files):
                 progress_bar.progress(current_progress)
                 status_text.text(f"Processing {uploaded_file.name}... ({i+1}/{total_files})")
                 
-                # Determine file type and extract text
+                # Determine file type and extract text from ALL pages
                 file_type = validate_file_type(uploaded_file)
-                extracted_text = ""
+                pages_text = []
                 
                 if file_type == 'pdf':
-                    # Process PDF file
+                    # Process PDF file - extract text from ALL pages first
                     with st.spinner(f"Converting {uploaded_file.name} to images..."):
                         images = pdf_processor.pdf_to_images(uploaded_file)
                     
@@ -255,20 +257,29 @@ def process_resumes(uploaded_files):
                             st.warning(f"⚠️ No images could be extracted from {uploaded_file.name}")
                         continue
                     
-                    # Extract text using OCR
-                    with st.spinner(f"Extracting text from {uploaded_file.name}..."):
+                    # Extract text from ALL pages using OCR
+                    with st.spinner(f"Extracting text from all {len(images)} pages of {uploaded_file.name}..."):
                         for page_num, image in enumerate(images):
                             try:
                                 text_from_page = ocr_service.extract_text_from_image(image)
-                                extracted_text += text_from_page + "\n"
+                                if text_from_page.strip():  # Only add non-empty pages
+                                    pages_text.append(text_from_page)
                             except Exception as ocr_error:
                                 with results_container:
                                     st.warning(f"⚠️ OCR failed for page {page_num + 1} of {uploaded_file.name}: {str(ocr_error)}")
+                    
+                    # Concatenate all pages and preprocess
+                    if pages_text:
+                        extracted_text = text_preprocessor.concatenate_pages_text(pages_text)
+                    else:
+                        extracted_text = ""
                 
                 elif file_type == 'word':
-                    # Process Word file
+                    # Process Word file - already contains all pages
                     with st.spinner(f"Extracting text from {uploaded_file.name}..."):
-                        extracted_text = word_processor.extract_text(uploaded_file)
+                        raw_text = word_processor.extract_text(uploaded_file)
+                        # Normalize the text for better AI parsing
+                        extracted_text = text_preprocessor.normalize_text(raw_text)
                 
                 else:
                     with results_container:
@@ -373,5 +384,3 @@ def display_summary_table():
 
 if __name__ == "__main__":
     main()
-
-
