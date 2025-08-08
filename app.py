@@ -216,7 +216,7 @@ def process_resumes(uploaded_files):
                     "universe_domain": st.secrets.get("GCP_UNIVERSE_DOMAIN", "googleapis.com")
                 }
                 
-                ocr_service = OCRService(gcp_credentials)
+                ocr_service = OCRServiceFixed(gcp_credentials)
                 
                 # Initialize AIParser with OpenRouter
                 ai_parser = AIParser(st.secrets["DEEPSEEK_API_KEY"])
@@ -384,5 +384,6 @@ def display_summary_table():
 
 if __name__ == "__main__":
     main()
+
 
 
