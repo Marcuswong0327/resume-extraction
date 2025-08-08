@@ -217,7 +217,7 @@ def process_resumes(uploaded_files):
                 ocr_service = OCRService(gcp_credentials)
                 
                 # Initialize AIParser with OpenRouter
-                ai_parser = AIParser(st.secrets["OPENROUTER_API_KEY"])
+                ai_parser = AIParser(st.secrets["DEEPSEEK_API_KEY"])
                 data_extractor = DataExtractor()
                 
             except Exception as e:
@@ -373,4 +373,5 @@ def display_summary_table():
 
 if __name__ == "__main__":
     main()
+
 
