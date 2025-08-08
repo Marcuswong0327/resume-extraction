@@ -21,7 +21,9 @@ class PDFProcessor:
         """
         try:
             # Read PDF bytes
+            uploaded_file.seek(0)
             pdf_bytes = uploaded_file.read()
+            uploaded_file.seek(0)  # Reset for potential future use
             
             if not pdf_bytes:
                 raise ValueError("PDF file is empty or could not be read")
@@ -30,7 +32,6 @@ class PDFProcessor:
             images = convert_from_bytes(
                 pdf_bytes,
                 dpi=self.dpi,
-                output_folder=None,
                 thread_count=1,
                 fmt='PNG'
             )
@@ -38,7 +39,7 @@ class PDFProcessor:
             if not images:
                 raise ValueError("No pages found in PDF file")
             
-            # Convert to RGB if necessary (some PDFs might be in CMYK)
+            # Convert to RGB and optimize for OCR
             processed_images = []
             for i, image in enumerate(images):
                 try:
@@ -72,14 +73,13 @@ class PDFProcessor:
             Optimized PIL Image object
         """
         try:
-            # Keep original for now, but could add grayscale conversion if needed
-            # Convert to RGB to ensure compatibility
+            # Ensure RGB format
             if image.mode != 'RGB':
                 image = image.convert('RGB')
             
-            # Resize if image is too large (OCR works better on reasonably sized images)
+            # Resize if image is too large
             width, height = image.size
-            max_dimension = 2500  # Increased for better quality
+            max_dimension = 2500
             
             if width > max_dimension or height > max_dimension:
                 # Calculate new size maintaining aspect ratio
