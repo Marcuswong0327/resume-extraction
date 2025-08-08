@@ -170,7 +170,7 @@ def check_credentials():
             gcp_status = True
         
         # Check OpenRouter API key
-        if "OPENROUTER_API_KEY" in st.secrets:
+        if "DEEPSEEK_API_KEY" in st.secrets:
             ai_status = True
             
     except Exception as e:
@@ -373,3 +373,4 @@ def display_summary_table():
 
 if __name__ == "__main__":
     main()
+
