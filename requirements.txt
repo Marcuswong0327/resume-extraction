@@ -7,4 +7,3 @@ openpyxl
 requests
 poppler-utils 
 python-docx
-re
