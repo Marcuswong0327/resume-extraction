@@ -9,11 +9,16 @@ class DataExtractor:
         # Regular expressions for fallback extraction
         self.email_pattern = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
         self.phone_patterns = [
+            re.compile(r'\b0\d{3}\s*\d{3}\s*\d{3}\b'),  # 0123 456 789 (Australian mobile)
+            re.compile(r'\b\+61\s*\d{3}\s*\d{3}\s*\d{3}\b'),  # +61 123 456 789
+            re.compile(r'\b04\d{2}\s*\d{3}\s*\d{3}\b'),  # 04XX XXX XXX (Australian mobile)
             re.compile(r'\b\d{3}-\d{3}-\d{4}\b'),  # 123-456-7890
             re.compile(r'\b\(\d{3}\)\s*\d{3}-\d{4}\b'),  # (123) 456-7890
             re.compile(r'\b\d{3}\.\d{3}\.\d{4}\b'),  # 123.456.7890
             re.compile(r'\b\d{10}\b'),  # 1234567890
             re.compile(r'\+\d{1,3}\s*\d{3,4}\s*\d{3,4}\s*\d{3,4}'),  # +1 123 456 7890
+            re.compile(r'\b0\d{9}\b'),  # 0123456789 (10 digit Australian)
+            re.compile(r'\b06\d\s*\d{3}\s*\d{4}\b'),  # 060 XXX XXXX (South African format from sample)
         ]
     
     def extract_candidate_info(self, raw_text: str, ai_parsed_data: Dict, filename: str) -> Dict[str, Any]:
@@ -143,18 +148,33 @@ class DataExtractor:
                 r'(?:working as|employed as)\s+([^.\n]+)',
             ]
             
-            # Common job titles to look for
+            # Common job titles to look for (expanded for warehouse, logistics, and management roles)
             job_titles = [
-                'software engineer', 'software developer', 'web developer', 'full stack developer',
-                'frontend developer', 'backend developer', 'mobile developer', 'ios developer', 'android developer',
-                'data scientist', 'data analyst', 'data engineer', 'machine learning engineer',
-                'product manager', 'project manager', 'program manager', 'technical lead',
-                'senior developer', 'junior developer', 'lead developer', 'principal engineer',
-                'devops engineer', 'system administrator', 'network administrator',
-                'business analyst', 'systems analyst', 'quality assurance', 'qa engineer',
-                'designer', 'ui designer', 'ux designer', 'graphic designer',
-                'marketing manager', 'sales manager', 'account manager', 'hr manager',
-                'consultant', 'specialist', 'coordinator', 'assistant', 'associate'
+                # Management and Operations
+                'operations manager', 'warehouse manager', 'sales manager', 'general manager',
+                'logistics coordinator', 'warehouse supervisor', 'receiving supervisor',
+                'production manager', 'inventory team lead', 'team leader', 'supervisor',
+                'logistics manager', 'supply chain manager', 'distribution manager',
+                
+                # Warehouse and Logistics
+                'warehouse team member', 'forklift operator', 'warehouse coordinator',
+                'inventory coordinator', 'shipping coordinator', 'receiving coordinator',
+                'pick packer', 'warehouse associate', 'logistics coordinator',
+                'warehouse inventory team lead', 'fabric processor', 'cd packer',
+                
+                # Customer Service and Sales
+                'customer service officer', 'sales representative', 'account manager',
+                'customer service manager', 'client servicing consultant', 'sales manager',
+                'business development consultant', 'key account manager',
+                
+                # Technical and Data
+                'data scientist', 'software engineer', 'software developer', 'web developer',
+                'data analyst', 'research programmer', 'analyst programmer',
+                'systems analyst', 'business analyst', 'research fellow',
+                
+                # Other roles from samples
+                'waitress', 'kitchen hand', 'retail associate', 'office manager',
+                'administration officer', 'merchandising', 'security officer'
             ]
             
             text_lower = text.lower()
