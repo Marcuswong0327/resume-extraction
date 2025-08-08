@@ -54,8 +54,8 @@ class OCRService:
             # Create Vision API image object
             vision_image = vision.Image(content=img_byte_arr)
             
-            # Make a simple request
-            response = self.client.text_detection(image=vision_image)
+            # Make a simple request (using text_detection method)
+            response = self.client.text_detection(request={'image': vision_image})
             
             # Check for errors
             if response.error.message:
@@ -83,8 +83,8 @@ class OCRService:
             # Create Vision API image object
             vision_image = vision.Image(content=img_byte_arr)
             
-            # Perform text detection with timeout
-            response = self.client.text_detection(image=vision_image)
+            # Perform text detection
+            response = self.client.text_detection(request={'image': vision_image})
             
             # Check for API errors
             if response.error.message:
@@ -124,7 +124,7 @@ class OCRService:
             vision_image = vision.Image(content=img_byte_arr)
             
             # Perform document text detection for better structure
-            response = self.client.document_text_detection(image=vision_image)
+            response = self.client.document_text_detection(request={'image': vision_image})
             
             # Check for API errors
             if response.error.message:
