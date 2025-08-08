@@ -26,7 +26,7 @@ class DataExtractor:
         Extract and combine candidate information from OCR text and AI parsing
         
         Args:
-            raw_text: Raw text from OCR/Word extraction
+            raw_text: Raw text from OCR/Word extraction (concatenated from all pages)
             ai_parsed_data: Structured data from AI parsing
             filename: Source filename
             
@@ -39,8 +39,9 @@ class DataExtractor:
             candidate_info["filename"] = filename
             candidate_info["raw_text"] = raw_text
             
-            # Apply fallback extraction for missing critical information
-            candidate_info = self._apply_fallback_extraction(candidate_info, raw_text)
+            # ALWAYS apply regex fallback for critical information (emails and phones)
+            # This ensures we capture information even if AI misses it
+            candidate_info = self._apply_comprehensive_fallback_extraction(candidate_info, raw_text)
             
             # Clean and validate extracted data
             candidate_info = self._clean_extracted_data(candidate_info)
@@ -51,30 +52,51 @@ class DataExtractor:
             st.error(f"Error extracting candidate information: {str(e)}")
             return self._create_fallback_candidate_info(raw_text, filename)
     
-    def _apply_fallback_extraction(self, candidate_info: Dict, raw_text: str) -> Dict:
+    def _apply_comprehensive_fallback_extraction(self, candidate_info: Dict, raw_text: str) -> Dict:
         """
-        Apply regex-based fallback extraction for missing information
+        Apply comprehensive regex-based fallback extraction for missing information
         
         Args:
             candidate_info: Existing candidate information
-            raw_text: Raw text to extract from
+            raw_text: Raw text to extract from (concatenated from all pages)
             
         Returns:
             Enhanced candidate information
         """
-        # Extract email if missing
-        if not candidate_info.get("email"):
-            email_matches = self.email_pattern.findall(raw_text)
-            if email_matches:
-                candidate_info["email"] = email_matches[0]
+        # ALWAYS run regex for emails and phones as backup - scan entire document
         
-        # Extract phone if missing
-        if not candidate_info.get("phone"):
-            for pattern in self.phone_patterns:
-                phone_matches = pattern.findall(raw_text)
-                if phone_matches:
-                    candidate_info["phone"] = phone_matches[0]
-                    break
+        # Extract email - check both AI result and regex
+        ai_email = candidate_info.get("email", "").strip()
+        regex_emails = self.email_pattern.findall(raw_text)
+        
+        if regex_emails:
+            # Use regex email if AI email is missing or invalid
+            if not ai_email or "@" not in ai_email:
+                candidate_info["email"] = regex_emails[0]
+            # If AI found different email, keep AI but note regex found alternatives
+            elif ai_email not in regex_emails:
+                candidate_info["email"] = ai_email  # Trust AI but fallback available
+        elif ai_email:
+            candidate_info["email"] = ai_email
+        
+        # Extract phone - check both AI result and regex  
+        ai_phone = candidate_info.get("phone", "").strip()
+        regex_phone = None
+        
+        for pattern in self.phone_patterns:
+            phone_matches = pattern.findall(raw_text)
+            if phone_matches:
+                regex_phone = phone_matches[0]
+                break
+        
+        if regex_phone:
+            # Use regex phone if AI phone is missing or too short
+            if not ai_phone or len(ai_phone.replace(" ", "").replace("-", "")) < 8:
+                candidate_info["phone"] = regex_phone
+            else:
+                candidate_info["phone"] = ai_phone  # Trust AI result
+        elif ai_phone:
+            candidate_info["phone"] = ai_phone
         
         # Extract names if missing using improved heuristics
         if not candidate_info.get("first_name") and not candidate_info.get("family_name"):
