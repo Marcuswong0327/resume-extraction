@@ -3,7 +3,6 @@ import pandas as pd
 import json
 import traceback
 import os
-import magic
 from io import BytesIO
 from pdf_processor import PDFProcessor
 from word_processor import WordProcessor
@@ -140,38 +139,20 @@ def main():
         display_summary_table()
 
 def validate_file_type(uploaded_file):
-    """Validate uploaded file type"""
+    """Validate uploaded file type using file extension"""
     try:
-        # Reset file pointer
-        uploaded_file.seek(0)
-        file_bytes = uploaded_file.read()
-        uploaded_file.seek(0)  # Reset again for later use
+        filename = uploaded_file.name.lower()
         
-        # Use python-magic to detect file type
-        file_type = magic.from_buffer(file_bytes, mime=True)
-        
-        # Check for supported types
-        if file_type == 'application/pdf':
+        # Check file extensions for supported types
+        if filename.endswith('.pdf'):
             return 'pdf'
-        elif file_type in ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
-                          'application/msword']:
+        elif filename.endswith('.docx') or filename.endswith('.doc'):
             return 'word'
-        elif uploaded_file.name.lower().endswith(('.pdf', '.docx', '.doc')):
-            # Fallback to file extension if MIME detection fails
-            if uploaded_file.name.lower().endswith('.pdf'):
-                return 'pdf'
-            else:
-                return 'word'
         
         return None
         
     except Exception as e:
         st.warning(f"Could not validate file type for {uploaded_file.name}: {str(e)}")
-        # Fallback to file extension
-        if uploaded_file.name.lower().endswith('.pdf'):
-            return 'pdf'
-        elif uploaded_file.name.lower().endswith(('.docx', '.doc')):
-            return 'word'
         return None
 
 def check_credentials():
