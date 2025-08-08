@@ -21,7 +21,7 @@ class DataExtractor:
         Extract and combine candidate information from OCR text and AI parsing
         
         Args:
-            raw_text: Raw text from OCR
+            raw_text: Raw text from OCR/Word extraction
             ai_parsed_data: Structured data from AI parsing
             filename: Source filename
             
@@ -39,20 +39,6 @@ class DataExtractor:
             
             # Clean and validate extracted data
             candidate_info = self._clean_extracted_data(candidate_info)
-            
-            # Enhance skills extraction
-            candidate_info["skills"] = self._enhance_skills_extraction(
-                candidate_info.get("skills", []), 
-                raw_text
-            )
-            
-            # Format experience and education for better display
-            candidate_info["experience_formatted"] = self._format_experience(
-                candidate_info.get("experience", [])
-            )
-            candidate_info["education_formatted"] = self._format_education(
-                candidate_info.get("education", [])
-            )
             
             return candidate_info
             
@@ -85,27 +71,36 @@ class DataExtractor:
                     candidate_info["phone"] = phone_matches[0]
                     break
         
-        # Extract name if missing (simple heuristic)
-        if not candidate_info.get("name"):
-            candidate_info["name"] = self._extract_name_fallback(raw_text)
+        # Extract names if missing using improved heuristics
+        if not candidate_info.get("first_name") and not candidate_info.get("family_name"):
+            names = self._extract_names_fallback(raw_text)
+            if names:
+                candidate_info["first_name"] = names.get("first_name", "")
+                candidate_info["family_name"] = names.get("family_name", "")
+        
+        # Extract job title if missing
+        if not candidate_info.get("job_title"):
+            job_title = self._extract_job_title_fallback(raw_text)
+            if job_title:
+                candidate_info["job_title"] = job_title
         
         return candidate_info
     
-    def _extract_name_fallback(self, text: str) -> str:
+    def _extract_names_fallback(self, text: str) -> Dict[str, str]:
         """
-        Extract candidate name using heuristics
+        Extract first and family names using heuristics
         
         Args:
-            text: Raw text to extract name from
+            text: Raw text to extract names from
             
         Returns:
-            Extracted name or empty string
+            Dictionary with first_name and family_name
         """
         try:
             lines = text.split('\n')
             
             # Look for name in first few lines
-            for line in lines[:10]:  # Increased search range
+            for line in lines[:10]:
                 line = line.strip()
                 
                 # Skip empty lines and common header words
@@ -117,16 +112,73 @@ class DataExtractor:
                 words = line.split()
                 if 2 <= len(words) <= 4:
                     # Check if words look like names (start with capital letters)
-                    if all(word[0].isupper() and word.replace('.', '').isalpha() for word in words if len(word) > 1):
-                        return line
-                
-                # Single word that might be a name (less reliable)
-                if len(words) == 1 and len(words[0]) > 2 and words[0][0].isupper() and words[0].isalpha():
-                    # Look for a last name in the next lines
-                    for next_line in lines[lines.index(line)+1:lines.index(line)+3]:
-                        next_words = next_line.strip().split()
-                        if len(next_words) == 1 and next_words[0][0].isupper() and next_words[0].isalpha():
-                            return f"{words[0]} {next_words[0]}"
+                    if all(word[0].isupper() and word.replace('.', '').replace(',', '').isalpha() 
+                          for word in words if len(word) > 1):
+                        # Assume first word is first name, last word is family name
+                        return {
+                            "first_name": words[0],
+                            "family_name": words[-1]
+                        }
+            
+            return {"first_name": "", "family_name": ""}
+            
+        except Exception:
+            return {"first_name": "", "family_name": ""}
+    
+    def _extract_job_title_fallback(self, text: str) -> str:
+        """
+        Extract job title using pattern matching
+        
+        Args:
+            text: Raw text to extract job title from
+            
+        Returns:
+            Extracted job title or empty string
+        """
+        try:
+            # Common job title patterns and keywords
+            job_patterns = [
+                r'(?:position|title|role|job)\s*:?\s*([^.\n]+)',
+                r'(?:current|present)\s+(?:position|title|role)\s*:?\s*([^.\n]+)',
+                r'(?:working as|employed as)\s+([^.\n]+)',
+            ]
+            
+            # Common job titles to look for
+            job_titles = [
+                'software engineer', 'software developer', 'web developer', 'full stack developer',
+                'frontend developer', 'backend developer', 'mobile developer', 'ios developer', 'android developer',
+                'data scientist', 'data analyst', 'data engineer', 'machine learning engineer',
+                'product manager', 'project manager', 'program manager', 'technical lead',
+                'senior developer', 'junior developer', 'lead developer', 'principal engineer',
+                'devops engineer', 'system administrator', 'network administrator',
+                'business analyst', 'systems analyst', 'quality assurance', 'qa engineer',
+                'designer', 'ui designer', 'ux designer', 'graphic designer',
+                'marketing manager', 'sales manager', 'account manager', 'hr manager',
+                'consultant', 'specialist', 'coordinator', 'assistant', 'associate'
+            ]
+            
+            text_lower = text.lower()
+            
+            # Try pattern matching first
+            for pattern in job_patterns:
+                matches = re.finditer(pattern, text_lower, re.IGNORECASE)
+                for match in matches:
+                    title = match.group(1).strip()
+                    if title and len(title) < 100:  # Reasonable length check
+                        return title.title()
+            
+            # Look for common job titles
+            for title in job_titles:
+                if title in text_lower:
+                    # Try to extract the full title with context
+                    title_pattern = rf'\b([^.\n]*{re.escape(title)}[^.\n]*)\b'
+                    match = re.search(title_pattern, text_lower)
+                    if match:
+                        extracted_title = match.group(1).strip()
+                        if len(extracted_title) < 100:
+                            return extracted_title.title()
+                    else:
+                        return title.title()
             
             return ""
             
@@ -155,186 +207,51 @@ class DataExtractor:
             cleaned_phone = re.sub(r'[^\d\-\(\)\.\+\s]', '', phone)
             candidate_info["phone"] = cleaned_phone
         
-        # Clean name
-        name = candidate_info.get("name", "").strip()
-        if name:
-            # Remove extra whitespace and capitalize properly
-            candidate_info["name"] = ' '.join(word.capitalize() for word in name.split())
+        # Clean names
+        first_name = candidate_info.get("first_name", "").strip()
+        if first_name:
+            candidate_info["first_name"] = first_name.title()
         
-        # Ensure required fields exist
-        for field in ["skills", "experience", "education"]:
+        family_name = candidate_info.get("family_name", "").strip()
+        if family_name:
+            candidate_info["family_name"] = family_name.title()
+        
+        # Clean job title
+        job_title = candidate_info.get("job_title", "").strip()
+        if job_title:
+            candidate_info["job_title"] = job_title.title()
+        
+        # Ensure all required fields exist
+        required_fields = ["first_name", "family_name", "email", "phone", "job_title"]
+        for field in required_fields:
             if field not in candidate_info:
-                candidate_info[field] = []
+                candidate_info[field] = ""
         
         return candidate_info
     
-    def _enhance_skills_extraction(self, existing_skills: List[str], raw_text: str) -> List[str]:
-        """
-        Enhance skills extraction with additional pattern matching
-        
-        Args:
-            existing_skills: Skills already extracted by AI
-            raw_text: Raw text to search for additional skills
-            
-        Returns:
-            Enhanced skills list
-        """
-        # Common technical skills and keywords to look for
-        common_skills = [
-            # Programming languages
-            'Python', 'Java', 'JavaScript', 'C++', 'C#', 'PHP', 'Ruby', 'Go', 'Rust',
-            'TypeScript', 'Swift', 'Kotlin', 'Scala', 'R', 'MATLAB', 'SQL', 'C',
-            
-            # Web technologies
-            'HTML', 'CSS', 'React', 'Angular', 'Vue.js', 'Node.js', 'Express',
-            'Django', 'Flask', 'Spring', 'Laravel', 'WordPress', 'Bootstrap',
-            
-            # Databases
-            'MySQL', 'PostgreSQL', 'MongoDB', 'SQLite', 'Oracle', 'Redis',
-            'Elasticsearch', 'Cassandra', 'DynamoDB',
-            
-            # Cloud platforms
-            'AWS', 'Azure', 'Google Cloud', 'GCP', 'Docker', 'Kubernetes',
-            'Jenkins', 'Git', 'GitHub', 'GitLab', 'Terraform',
-            
-            # Data science
-            'Machine Learning', 'Deep Learning', 'TensorFlow', 'PyTorch',
-            'Pandas', 'NumPy', 'Scikit-learn', 'Jupyter', 'Apache Spark',
-            
-            # Other tools and frameworks
-            'Excel', 'PowerBI', 'Tableau', 'Photoshop', 'Illustrator',
-            'AutoCAD', 'Solidworks', 'JIRA', 'Agile', 'Scrum', 'DevOps',
-            'REST API', 'GraphQL', 'Microservices', 'Linux', 'Windows'
-        ]
-        
-        enhanced_skills = list(existing_skills) if existing_skills else []
-        
-        # Look for additional skills in the text
-        text_upper = raw_text.upper()
-        for skill in common_skills:
-            skill_variants = [skill, skill.lower(), skill.upper()]
-            
-            for variant in skill_variants:
-                if variant.upper() in text_upper and skill not in enhanced_skills:
-                    # Check if it's a whole word match
-                    if re.search(r'\b' + re.escape(variant.upper()) + r'\b', text_upper):
-                        enhanced_skills.append(skill)
-                        break
-        
-        # Remove duplicates and empty entries
-        enhanced_skills = list(set(skill.strip() for skill in enhanced_skills if skill.strip()))
-        
-        return sorted(enhanced_skills)
-    
-    def _format_experience(self, experience_list: List) -> List[str]:
-        """
-        Format experience data for display
-        
-        Args:
-            experience_list: List of experience dictionaries or strings
-            
-        Returns:
-            List of formatted experience strings
-        """
-        formatted_experience = []
-        
-        for exp in experience_list:
-            if isinstance(exp, dict):
-                parts = []
-                
-                position = exp.get("position", "").strip()
-                company = exp.get("company", "").strip()
-                duration = exp.get("duration", "").strip()
-                description = exp.get("description", "").strip()
-                
-                if position and company:
-                    parts.append(f"{position} at {company}")
-                elif position:
-                    parts.append(position)
-                elif company:
-                    parts.append(company)
-                
-                if duration:
-                    parts.append(f"({duration})")
-                
-                if description:
-                    # Truncate long descriptions
-                    if len(description) > 200:
-                        description = description[:200] + "..."
-                    parts.append(f"- {description}")
-                
-                if parts:
-                    formatted_experience.append(" ".join(parts))
-            elif isinstance(exp, str) and exp.strip():
-                formatted_experience.append(exp.strip())
-        
-        return formatted_experience
-    
-    def _format_education(self, education_list: List) -> List[str]:
-        """
-        Format education data for display
-        
-        Args:
-            education_list: List of education dictionaries or strings
-            
-        Returns:
-            List of formatted education strings
-        """
-        formatted_education = []
-        
-        for edu in education_list:
-            if isinstance(edu, dict):
-                parts = []
-                
-                degree = edu.get("degree", "").strip()
-                field = edu.get("field", "").strip()
-                institution = edu.get("institution", "").strip()
-                year = edu.get("year", "").strip()
-                
-                if degree and field:
-                    parts.append(f"{degree} in {field}")
-                elif degree:
-                    parts.append(degree)
-                elif field:
-                    parts.append(field)
-                
-                if institution:
-                    parts.append(f"from {institution}")
-                
-                if year:
-                    parts.append(f"({year})")
-                
-                if parts:
-                    formatted_education.append(" ".join(parts))
-            elif isinstance(edu, str) and edu.strip():
-                formatted_education.append(edu.strip())
-        
-        return formatted_education
-    
     def _create_fallback_candidate_info(self, raw_text: str, filename: str) -> Dict:
         """
-        Create basic candidate info when AI parsing fails
+        Create fallback candidate info when AI parsing fails completely
         
         Args:
-            raw_text: Raw text from OCR
+            raw_text: Raw text from document
             filename: Source filename
             
         Returns:
             Basic candidate information dictionary
         """
-        candidate_info = {
-            "filename": filename,
-            "raw_text": raw_text,
-            "name": self._extract_name_fallback(raw_text),
+        fallback_info = {
+            "first_name": "",
+            "family_name": "",
             "email": "",
             "phone": "",
-            "skills": [],
-            "experience": [],
-            "education": [],
-            "summary": "",
-            "experience_formatted": [],
-            "education_formatted": []
+            "job_title": "",
+            "filename": filename,
+            "raw_text": raw_text
         }
         
-        # Apply basic regex extraction
-        return self._apply_fallback_extraction(candidate_info, raw_text)
+        # Try to extract basic information using regex
+        fallback_info = self._apply_fallback_extraction(fallback_info, raw_text)
+        fallback_info = self._clean_extracted_data(fallback_info)
+        
+        return fallback_info
