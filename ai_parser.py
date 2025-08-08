@@ -2,13 +2,10 @@ import requests
 import json
 import streamlit as st
 import time
-import sys
-import platform
 import re
 
-
 class AIParser:
-    """Handles AI API integration for intelligent resume parsing, supporting OpenRouter."""
+    """Handles AI API integration for intelligent resume parsing using OpenRouter"""
 
     def __init__(
         self,
@@ -20,49 +17,17 @@ class AIParser:
             raise ValueError("API key is required for AIParser initialization.")
 
         self.api_key = api_key
-        self.base_url = base_url.rstrip("/")  # ensure no trailing slash
+        self.base_url = base_url.rstrip("/")
         self.model_name = model_name
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            # Change this if OpenRouter rejects localhost
-            "HTTP-Referer": "http://localhost",
+            "HTTP-Referer": "http://localhost:5000",
             "X-Title": "Resume Parser"
         }
 
-        # Debug environment info
-        st.write(f"DEBUG: Initializing AIParser with base_url: {self.base_url}, model: {self.model_name}")
-        st.write(f"DEBUG: requests library version: {requests.__version__}")
-        st.write(f"DEBUG: Python version: {sys.version}")
-        st.write(f"DEBUG: Platform: {platform.platform()}")
-
-    def test_connection(self):
-        """Optional API test. Call this manually if you want to verify connectivity."""
-        try:
-            test_payload = {
-                "model": self.model_name,
-                "messages": [{"role": "user", "content": "Hello"}],
-                "max_tokens": 1,
-                "temperature": 0
-            }
-
-            response = requests.post(
-                self.base_url,
-                headers=self.headers,
-                json=test_payload,
-                timeout=10
-            )
-
-            if response.status_code != 200:
-                raise Exception(f"API test failed: {response.status_code} - {response.text}")
-            st.success("API connection successful ✅")
-
-        except Exception as e:
-            st.error(f"API connection test failed: {str(e)}")
-            raise
-
     def parse_resume(self, resume_text: str):
-        """Main parsing function."""
+        """Main parsing function focused on extracting key information"""
         try:
             if not resume_text or not resume_text.strip():
                 return self._create_empty_structure()
@@ -80,51 +45,39 @@ class AIParser:
             return self._create_empty_structure()
 
     def _create_parsing_prompt(self, resume_text: str):
-        """Prepare prompt for LLM."""
-        max_chars = 15000
+        """Create focused prompt for extracting specific information"""
+        max_chars = 12000
         if len(resume_text) > max_chars:
             resume_text = resume_text[:max_chars] + "..."
 
         return f"""
-You are an expert resume parser. Analyze the following resume text and extract structured information in JSON format.
+You are an expert resume parser. Extract ONLY the following specific information from this resume text:
 
 Resume Text:
 {resume_text}
 
-Please extract and return ONLY a valid JSON object with the following structure:
+Extract and return ONLY a valid JSON object with this EXACT structure:
 {{
-    "name": "candidate full name",
+    "first_name": "candidate's first name only",
+    "family_name": "candidate's last/family name only", 
     "email": "email address",
     "phone": "phone number",
-    "skills": ["skill1", "skill2", "skill3"],
-    "experience": [
-        {{
-            "company": "company name",
-            "position": "job title",
-            "duration": "employment period",
-            "description": "brief job description"
-        }}
-    ],
-    "education": [
-        {{
-            "institution": "school/university name",
-            "degree": "degree type",
-            "field": "field of study",
-            "year": "graduation year"
-        }}
-    ],
-    "summary": "professional summary or objective"
+    "job_title": "current or most recent job title/position"
 }}
 
-Rules:
+IMPORTANT RULES:
 1. Return ONLY valid JSON, no extra text
-2. Use "" or [] for missing values
-3. Extract all skills, technical + soft
-4. Include all experience & education entries
+2. Use empty string "" for missing values
+3. For first_name and family_name: split the full name properly
+4. For job_title: extract the most recent or current position title
+5. Extract complete phone number with area code if available
+6. Ensure email is valid format
+
+Focus on accuracy over completeness.
 """
 
     def _make_api_call_with_retry(self, prompt: str, max_retries: int = 3):
-        """Retry wrapper for API call."""
+        """Retry wrapper for API call"""
         for attempt in range(max_retries):
             try:
                 return self._make_api_call(prompt)
@@ -138,11 +91,11 @@ Rules:
         return None
 
     def _make_api_call(self, prompt: str):
-        """Actual API request."""
+        """Make API request to OpenRouter"""
         payload = {
             "model": self.model_name,
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 3000,
+            "max_tokens": 1000,
             "temperature": 0.1
         }
 
@@ -160,9 +113,9 @@ Rules:
             raise Exception(f"API error: {response.status_code} - {response.text}")
 
     def _parse_api_response(self, response_text: str):
-        """Extract and validate JSON from LLM response."""
+        """Extract and validate JSON from AI response"""
         try:
-            # Extract JSON with regex to avoid slicing errors
+            # Try to extract JSON from response
             json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 json_text = json_match.group(0)
@@ -174,58 +127,39 @@ Rules:
 
         except json.JSONDecodeError as e:
             st.warning(f"Failed to parse AI response as JSON: {str(e)}")
-            st.code(response_text)
+            st.code(response_text[:500] + "..." if len(response_text) > 500 else response_text)
             return self._create_empty_structure()
 
     def _validate_parsed_data(self, data: dict):
-        """Ensure parsed data matches expected structure."""
+        """Validate and clean parsed data"""
         validated_data = {
-            "name": str(data.get("name", "")).strip(),
+            "first_name": str(data.get("first_name", "")).strip(),
+            "family_name": str(data.get("family_name", "")).strip(),
             "email": str(data.get("email", "")).strip(),
             "phone": str(data.get("phone", "")).strip(),
-            "skills": [],
-            "experience": [],
-            "education": [],
-            "summary": str(data.get("summary", "")).strip()
+            "job_title": str(data.get("job_title", "")).strip()
         }
 
-        if isinstance(data.get("skills"), list):
-            validated_data["skills"] = [str(skill).strip() for skill in data["skills"] if str(skill).strip()]
+        # Clean email format
+        email = validated_data["email"]
+        if email and not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+            validated_data["email"] = ""
 
-        if isinstance(data.get("experience"), list):
-            for exp in data["experience"]:
-                if isinstance(exp, dict):
-                    validated_exp = {
-                        "company": str(exp.get("company", "")).strip(),
-                        "position": str(exp.get("position", "")).strip(),
-                        "duration": str(exp.get("duration", "")).strip(),
-                        "description": str(exp.get("description", "")).strip()
-                    }
-                    if any(validated_exp.values()):
-                        validated_data["experience"].append(validated_exp)
-
-        if isinstance(data.get("education"), list):
-            for edu in data["education"]:
-                if isinstance(edu, dict):
-                    validated_edu = {
-                        "institution": str(edu.get("institution", "")).strip(),
-                        "degree": str(edu.get("degree", "")).strip(),
-                        "field": str(edu.get("field", "")).strip(),
-                        "year": str(edu.get("year", "")).strip()
-                    }
-                    if any(validated_edu.values()):
-                        validated_data["education"].append(validated_edu)
+        # Clean phone number
+        phone = validated_data["phone"]
+        if phone:
+            # Remove non-digit characters except +, -, (, ), space
+            cleaned_phone = re.sub(r'[^\d\-\(\)\.\+\s]', '', phone)
+            validated_data["phone"] = cleaned_phone.strip()
 
         return validated_data
 
     def _create_empty_structure(self):
-        """Fallback empty structure."""
+        """Return empty structure when parsing fails"""
         return {
-            "name": "",
+            "first_name": "",
+            "family_name": "",
             "email": "",
             "phone": "",
-            "skills": [],
-            "experience": [],
-            "education": [],
-            "summary": ""
+            "job_title": ""
         }
