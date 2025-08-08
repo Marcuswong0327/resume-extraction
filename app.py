@@ -167,9 +167,9 @@ def process_resumes(uploaded_files):
                     "private_key": st.secrets["GCP_PRIVATE_KEY"].replace('\\n', '\n'),
                     "client_email": st.secrets["GCP_CLIENT_EMAIL"],
                     "client_id": st.secrets["GCP_CLIENT_ID"],
-                    "auth_uri": st.secrets.get("GCP_AUTH_URI", "[https://accounts.google.com/o/oauth2/auth](https://accounts.google.com/o/oauth2/auth)"),
-                    "token_uri": st.secrets.get("GCP_TOKEN_URI", "[https://oauth2.googleapis.com/token](https://oauth2.googleapis.com/token)"),
-                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL", "[https://www.googleapis.com/oauth2/v1/certs](https://www.googleapis.com/oauth2/v1/certs)"),
+                    "auth_uri": st.secrets.get("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
+                    "token_uri": st.secrets.get("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
                     "client_x509_cert_url": st.secrets.get("GCP_CLIENT_X509_CERT_URL", ""),
                     "universe_domain": st.secrets.get("GCP_UNIVERSE_DOMAIN", "googleapis.com")
                 }
@@ -378,5 +378,6 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
