@@ -6,7 +6,7 @@ import os
 from io import BytesIO
 from pdf_processor import PDFProcessor
 from word_processor import WordProcessor
-from ocr_service import OCRService
+from ocr_service_fixed import OCRServiceFixed
 from ai_parser import AIParser
 from data_extractor import DataExtractor
 from excel_exporter import ExcelExporter
@@ -384,4 +384,5 @@ def display_summary_table():
 
 if __name__ == "__main__":
     main()
+
 
