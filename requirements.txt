@@ -6,4 +6,4 @@ google-cloud-vision
 openpyxl
 requests
 poppler-utils 
-docx
+python-docx
