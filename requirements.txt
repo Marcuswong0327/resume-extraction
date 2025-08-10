@@ -1,8 +1,6 @@
 streamlit
 pandas
-pdf2image
-Pillow
-google-cloud-vision
+PyMuPDF
 openpyxl
 requests
 poppler-utils 
