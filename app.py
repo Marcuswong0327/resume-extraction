@@ -39,17 +39,6 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
         
-        # Google Cloud Vision API Configuration
-        st.subheader("Google Cloud Vision API")
-        with st.expander("API Credentials", expanded=False):
-            if credentials_status['gcp_status']:
-                st.success("✅ Google Cloud credentials configured")
-                if 'GCP_PROJECT_ID' in st.secrets:
-                    st.info(f"Project ID: {st.secrets['GCP_PROJECT_ID']}")
-            else:
-                st.error("❌ Google Cloud credentials not found in secrets")
-                st.info("Please add GCP credentials to your secrets.toml file")
-        
         # OpenRouter API Configuration
         st.subheader("OpenRouter AI Parser")
         if credentials_status['ai_status']:
@@ -328,7 +317,6 @@ def generate_excel_report():
 
 if __name__ == "__main__":
     main()
-
 
 
 
