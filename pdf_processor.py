@@ -1,120 +1,52 @@
-import io
-from pdf2image import convert_from_bytes
-from PIL import Image
+import fitz  # PyMuPDF
 import streamlit as st
 
 class PDFProcessor:
-    """Handles PDF to image conversion for OCR processing"""
+    """Handles PDF text extraction using PyMuPDF"""
     
     def __init__(self):
-        self.dpi = 300  # High DPI for better OCR accuracy
+        pass
     
-    def pdf_to_images(self, uploaded_file):
+    def pdf_to_text(self, uploaded_file):
         """
-        Convert PDF file to list of PIL images
+        Extract text from PDF file
         
         Args:
             uploaded_file: Streamlit uploaded file object
             
         Returns:
-            List of PIL Image objects
+            String containing all extracted text
         """
         try:
-            # Read PDF bytes
             uploaded_file.seek(0)
             pdf_bytes = uploaded_file.read()
-            uploaded_file.seek(0)  # Reset for potential future use
+            uploaded_file.seek(0)  # reset for future use
             
             if not pdf_bytes:
                 raise ValueError("PDF file is empty or could not be read")
             
-            # Convert PDF to images
-            images = convert_from_bytes(
-                pdf_bytes,
-                dpi=self.dpi,
-                thread_count=1,
-                fmt='PNG'
-            )
-            
-            if not images:
+            # Open PDF from bytes
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            if len(doc) == 0:
                 raise ValueError("No pages found in PDF file")
             
-            # Convert to RGB and optimize for OCR
-            processed_images = []
-            for i, image in enumerate(images):
+            all_text = []
+            for page_num, page in enumerate(doc, start=1):
                 try:
-                    if image.mode != 'RGB':
-                        image = image.convert('RGB')
-                    
-                    # Optimize image for OCR
-                    optimized_image = self.optimize_image_for_ocr(image)
-                    processed_images.append(optimized_image)
+                    text = page.get_text()
+                    if text.strip():
+                        all_text.append(f"--- Page {page_num} ---\n{text}")
+                    else:
+                        st.warning(f"No text found on page {page_num}")
                 except Exception as e:
-                    st.warning(f"Error processing page {i+1}: {str(e)}")
+                    st.warning(f"Error extracting text from page {page_num}: {str(e)}")
                     continue
             
-            if not processed_images:
-                raise ValueError("No pages could be processed from PDF")
+            if not all_text:
+                raise ValueError("No text could be extracted from PDF")
             
-            return processed_images
-            
-        except Exception as e:
-            st.error(f"Error converting PDF to images: {str(e)}")
-            raise e
-    
-    def optimize_image_for_ocr(self, image):
-        """
-        Optimize image for better OCR results
+            return "\n\n".join(all_text)
         
-        Args:
-            image: PIL Image object
-            
-        Returns:
-            Optimized PIL Image object
-        """
-        try:
-            # Ensure RGB format
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Resize if image is too large
-            width, height = image.size
-            max_dimension = 2500
-            
-            if width > max_dimension or height > max_dimension:
-                # Calculate new size maintaining aspect ratio
-                if width > height:
-                    new_width = max_dimension
-                    new_height = int((height * max_dimension) / width)
-                else:
-                    new_height = max_dimension
-                    new_width = int((width * max_dimension) / height)
-                
-                image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            
-            return image
-            
         except Exception as e:
-            st.error(f"Error optimizing image for OCR: {str(e)}")
-            return image
-    
-    def image_to_bytes(self, image, format='PNG'):
-        """
-        Convert PIL image to bytes for API calls
-        
-        Args:
-            image: PIL Image object
-            format: Image format (PNG, JPEG, etc.)
-            
-        Returns:
-            Bytes representation of the image
-        """
-        try:
-            img_byte_arr = io.BytesIO()
-            image.save(img_byte_arr, format=format)
-            img_byte_arr = img_byte_arr.getvalue()
-            return img_byte_arr
-            
-        except Exception as e:
-            st.error(f"Error converting image to bytes: {str(e)}")
+            st.error(f"Error reading PDF: {str(e)}")
             raise e
