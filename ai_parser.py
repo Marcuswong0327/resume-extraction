@@ -70,7 +70,7 @@ IMPORTANT RULES:
 2. Use empty string "" for missing values
 3. For first_name and family_name: split the full name properly
 4. For job_title: extract the most recent or current position title
-5. Extract complete phone number with area code if available
+5. Extract complete phone number on the first few lines of text near first_name and family_name
 6. Ensure email is valid format
 
 Focus on accuracy over completeness.
@@ -163,3 +163,4 @@ Focus on accuracy over completeness.
             "phone": "",
             "job_title": ""
         }
+
