@@ -43,7 +43,6 @@ def main():
         st.subheader("OpenRouter AI Parser")
         if credentials_status['ai_status']:
             st.success("✅ OpenRouter API key configured")
-            st.info("Using DeepSeek model via OpenRouter")
         else:
             st.error("❌ OpenRouter API key not found in secrets")
             st.info("Please add 'OPENROUTER_API_KEY' to your secrets.toml file")
@@ -69,8 +68,6 @@ def main():
         )
         
         if uploaded_files:
-            st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
-            
             # Display uploaded files with file type validation
             with st.expander("📋 Uploaded Files", expanded=True):
                 valid_files = []
@@ -86,11 +83,11 @@ def main():
                     st.warning(f"Only {len(valid_files)} out of {len(uploaded_files)} files are valid")
             
             # Process files button
-            process_disabled = not (credentials_status['gcp_status'] and credentials_status['ai_status']) or st.session_state.processing_in_progress
+            process_disabled = not (credentials_status['ai_status']) or st.session_state.processing_in_progress
             
             if st.button("🚀 Process Resumes", type="primary", use_container_width=True, disabled=process_disabled):
-                if not credentials_status['gcp_status'] or not credentials_status['ai_status']:
-                    st.error("❌ Please configure both Google Cloud Vision and OpenRouter API credentials before processing.")
+                if not credentials_status['ai_status']:
+                    st.error("❌ Please configure OpenRouter API credentials before processing.")
                 else:
                     process_resumes(valid_files)
     
@@ -116,7 +113,6 @@ def main():
                         use_container_width=True
                     )
                 else:
-                    if st.button("📥 Generate Excel Report", type="secondary", use_container_width=True):
                         generate_excel_report()
         else:
             st.info("No candidates processed yet. Upload and process resume files to see results here.")
@@ -125,8 +121,6 @@ def main():
     if st.session_state.processed_candidates:
         st.header("👥 Processed Candidates")
         
-        # Create summary table
-        display_summary_table()
 
 def validate_file_type(uploaded_file):
     """Validate uploaded file type using file extension"""
@@ -308,7 +302,6 @@ def generate_excel_report():
             exporter = ExcelExporter()
             excel_data = exporter.export_candidates(st.session_state.processed_candidates)
             st.session_state.excel_data = excel_data
-            st.success("✅ Excel report generated successfully!")
             
     except Exception as e:
         st.error(f"❌ Error generating Excel report: {str(e)}")
