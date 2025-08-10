@@ -53,66 +53,66 @@ class DataExtractor:
             return self._create_fallback_candidate_info(raw_text, filename)
     
     def _apply_comprehensive_fallback_extraction(self, candidate_info: Dict, raw_text: str) -> Dict:
-        """
-        Apply comprehensive regex-based fallback extraction for missing information
-        
-        Args:
-            candidate_info: Existing candidate information
-            raw_text: Raw text to extract from (concatenated from all pages)
-            
-        Returns:
-            Enhanced candidate information
-        """
-        # ALWAYS run regex for emails and phones as backup - scan entire document
-        
-        # Extract email - check both AI result and regex
+    # Extract email
         ai_email = candidate_info.get("email", "").strip()
         regex_emails = self.email_pattern.findall(raw_text)
-        
+
         if regex_emails:
-            # Use regex email if AI email is missing or invalid
             if not ai_email or "@" not in ai_email:
                 candidate_info["email"] = regex_emails[0]
-            # If AI found different email, keep AI but note regex found alternatives
             elif ai_email not in regex_emails:
-                candidate_info["email"] = ai_email  # Trust AI but fallback available
+                candidate_info["email"] = ai_email
         elif ai_email:
             candidate_info["email"] = ai_email
-        
-        # Extract phone - check both AI result and regex  
+
+        # ===== Modified phone number extraction =====
         ai_phone = candidate_info.get("phone", "").strip()
         regex_phone = None
-        
-        for pattern in self.phone_patterns:
-            phone_matches = pattern.findall(raw_text)
-            if phone_matches:
-                regex_phone = phone_matches[0]
-                break
-        
+
+        # Step 1: Try to extract phone near the candidate's email (header area)
+        email_to_search = candidate_info.get("email", "")
+        if email_to_search:
+            # Search within ~150 characters after the email
+            email_pos = raw_text.find(email_to_search)
+            if email_pos != -1:
+                contact_block = raw_text[email_pos: email_pos + 150]  # capture header block
+                for pattern in self.phone_patterns:
+                    phone_matches = pattern.findall(contact_block)
+                    if phone_matches:
+                        regex_phone = phone_matches[0]
+                        break
+
+        # Step 2: If not found near email, search entire document (fallback)
+        if not regex_phone:
+            for pattern in self.phone_patterns:
+             phone_matches = pattern.findall(raw_text)
+                if phone_matches:
+                    regex_phone = phone_matches[0]
+                    break
+
         if regex_phone:
-            # Use regex phone if AI phone is missing or too short
             if not ai_phone or len(ai_phone.replace(" ", "").replace("-", "")) < 8:
                 candidate_info["phone"] = regex_phone
             else:
-                candidate_info["phone"] = ai_phone  # Trust AI result
+                candidate_info["phone"] = ai_phone
         elif ai_phone:
             candidate_info["phone"] = ai_phone
-        
-        # Extract names if missing using improved heuristics
+
+        # Extract name if missing
         if not candidate_info.get("first_name") and not candidate_info.get("family_name"):
             names = self._extract_names_fallback(raw_text)
             if names:
                 candidate_info["first_name"] = names.get("first_name", "")
                 candidate_info["family_name"] = names.get("family_name", "")
-        
+
         # Extract job title if missing
         if not candidate_info.get("job_title"):
             job_title = self._extract_job_title_fallback(raw_text)
             if job_title:
                 candidate_info["job_title"] = job_title
-        
+
         return candidate_info
-    
+
     def _extract_names_fallback(self, text: str) -> Dict[str, str]:
         """
         Extract first and family names using heuristics
@@ -297,3 +297,4 @@ class DataExtractor:
         fallback_info = self._clean_extracted_data(fallback_info)
         
         return fallback_info
+
