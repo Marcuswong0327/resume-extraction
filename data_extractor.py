@@ -85,7 +85,7 @@ class DataExtractor:
         # Step 2: If not found near email, search entire document (fallback)
         if not regex_phone:
             for pattern in self.phone_patterns:
-             phone_matches = pattern.findall(raw_text)
+                phone_matches = pattern.findall(raw_text)
                 if phone_matches:
                     regex_phone = phone_matches[0]
                     break
@@ -297,4 +297,5 @@ class DataExtractor:
         fallback_info = self._clean_extracted_data(fallback_info)
         
         return fallback_info
+
 
