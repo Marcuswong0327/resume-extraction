@@ -158,18 +158,10 @@ def validate_file_type(uploaded_file):
 
 def check_credentials():
     """Check if all required credentials are available in secrets"""
-    gcp_status = False
     ai_status = False
     
     try:
-        # Check GCP credentials
-        required_gcp_keys = [
-            "GCP_TYPE", "GCP_PROJECT_ID", "GCP_PRIVATE_KEY", "GCP_CLIENT_EMAIL"
-        ]
-        
-        if all(key in st.secrets for key in required_gcp_keys):
-            gcp_status = True
-        
+
         # Check OpenRouter API key
         if "DEEPSEEK_API_KEY" in st.secrets:
             ai_status = True
@@ -178,7 +170,6 @@ def check_credentials():
         st.error(f"Error checking credentials: {str(e)}")
     
     return {
-        'gcp_status': gcp_status,
         'ai_status': ai_status
     }
 
@@ -200,23 +191,6 @@ def process_resumes(uploaded_files):
                 pdf_processor = PDFProcessor()
                 word_processor = WordProcessor()
                 text_preprocessor = TextPreprocessor()
-                
-                # Create GCP credentials dictionary
-                gcp_credentials = {
-                    "type": st.secrets["GCP_TYPE"],
-                    "project_id": st.secrets["GCP_PROJECT_ID"],
-                    "private_key_id": st.secrets.get("GCP_PRIVATE_KEY_ID", ""),
-                    "private_key": st.secrets["GCP_PRIVATE_KEY"].replace('\\n', '\n'),
-                    "client_email": st.secrets["GCP_CLIENT_EMAIL"],
-                    "client_id": st.secrets.get("GCP_CLIENT_ID", ""),
-                    "auth_uri": st.secrets.get("GCP_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
-                    "token_uri": st.secrets.get("GCP_TOKEN_URI", "https://oauth2.googleapis.com/token"),
-                    "auth_provider_x509_cert_url": st.secrets.get("GCP_AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
-                    "client_x509_cert_url": st.secrets.get("GCP_CLIENT_X509_CERT_URL", ""),
-                    "universe_domain": st.secrets.get("GCP_UNIVERSE_DOMAIN", "googleapis.com")
-                }
-                
-                ocr_service = OCRServiceFixed(gcp_credentials)
                 
                 # Initialize AIParser with OpenRouter
                 ai_parser = AIParser(st.secrets["DEEPSEEK_API_KEY"])
@@ -249,24 +223,22 @@ def process_resumes(uploaded_files):
                 
                 if file_type == 'pdf':
                     # Process PDF file - extract text from ALL pages first
-                    with st.spinner(f"Converting {uploaded_file.name} to images..."):
-                        images = pdf_processor.pdf_to_images(uploaded_file)
-                    
-                    if not images:
-                        with results_container:
-                            st.warning(f"⚠️ No images could be extracted from {uploaded_file.name}")
-                        continue
-                    
-                    # Extract text from ALL pages using OCR
-                    with st.spinner(f"Extracting text from all {len(images)} pages of {uploaded_file.name}..."):
-                        for page_num, image in enumerate(images):
+                    with st.spinner(f"Extracting text from {uploaded_file.name}..."):
+                        pdf_bytes = uploaded_file.read()
+                        uploaded_file.seek(0)
+                        doc = fitz.open(stream=pdf_bytes, filetype = "pdf")
+                        pages_text = []
+                        for page_num, page in  enumerate(doc, start=1):
                             try:
-                                text_from_page = ocr_service.extract_text_from_image(image)
-                                if text_from_page.strip():  # Only add non-empty pages
-                                    pages_text.append(text_from_page)
-                            except Exception as ocr_error:
-                                with results_container:
-                                    st.warning(f"⚠️ OCR failed for page {page_num + 1} of {uploaded_file.name}: {str(ocr_error)}")
+                                text = page.get_text()
+                                if text.strip():
+                                    pages_text.append(text)
+                                else:
+                                    st.warning(f"No text found of {uploaded_file.name}")
+                            except Exception as e: 
+                                st.warning(f"Error extracting of {uploaded_file.name}: {str(e)}")
+
+                    
                     
                     # Concatenate all pages and preprocess
                     if pages_text:
@@ -309,10 +281,6 @@ def process_resumes(uploaded_files):
                 # Update progress
                 progress_bar.progress((i + 1) / total_files)
                 
-                # Show success for current file
-                with results_container:
-                    st.success(f"✅ Successfully processed {uploaded_file.name}")
-                
             except Exception as e:
                 with results_container:
                     st.error(f"❌ Error processing {uploaded_file.name}: {str(e)}")
@@ -322,7 +290,7 @@ def process_resumes(uploaded_files):
         
         # Final status update
         progress_bar.progress(1.0)
-        status_text.text(f"✅ Processing complete! Successfully processed {successful_processes}/{total_files} files")
+        status_text.text(f"Processing  {successful_processes}/{total_files} files")
         
         st.session_state.processing_complete = True
         st.session_state.processing_in_progress = False
@@ -358,32 +326,9 @@ def generate_excel_report():
         with st.expander("Error Details"):
             st.code(traceback.format_exc())
 
-def display_summary_table():
-    """Display summary table of processed candidates"""
-    try:
-        summary_data = []
-        
-        for i, candidate in enumerate(st.session_state.processed_candidates, 1):
-            summary_row = {
-                'ID': i,
-                'First Name': candidate.get('first_name', 'N/A'),
-                'Family Name': candidate.get('family_name', 'N/A'),
-                'Email': candidate.get('email', 'N/A'),
-                'Phone': candidate.get('phone', 'N/A'),
-                'Job Title': candidate.get('job_title', 'N/A'),
-                'Source File': candidate.get('filename', 'N/A')
-            }
-            summary_data.append(summary_row)
-        
-        if summary_data:
-            df = pd.DataFrame(summary_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        
-    except Exception as e:
-        st.error(f"Error displaying summary table: {str(e)}")
-
 if __name__ == "__main__":
     main()
+
 
 
 
