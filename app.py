@@ -3,10 +3,10 @@ import pandas as pd
 import json
 import traceback
 import os
+import fitz
 from io import BytesIO
 from pdf_processor import PDFProcessor
 from word_processor import WordProcessor
-from ocr_service_fixed import OCRServiceFixed
 from ai_parser import AIParser
 from data_extractor import DataExtractor
 from excel_exporter import ExcelExporter
@@ -328,6 +328,7 @@ def generate_excel_report():
 
 if __name__ == "__main__":
     main()
+
 
 
 
