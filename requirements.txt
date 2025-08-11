@@ -1,7 +1,7 @@
 streamlit
 PyMuPDF
 python-docx
-python-docx2txt
+docx2txt
 transformers
 torch
 pandas
