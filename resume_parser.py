@@ -1,26 +1,24 @@
 import re
+import logging
 from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
 from text_extractor import TextExtractor
 from data_processor import DataProcessor
-import logging
 
 class ResumeParser:
     """High-performance resume parser using Hugging Face NER models"""
-    
+
     def __init__(self):
         """Initialize the resume parser with pre-trained models"""
         self.text_extractor = TextExtractor()
         self.data_processor = DataProcessor()
-        
-        # Initialize Hugging Face NER pipeline
+
         try:
             model_name = "yashpwr/resume-ner-bert-v2"
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForTokenClassification.from_pretrained(model_name)
+            # Initialize the NER pipeline directly
             self.ner_pipeline = pipeline(
                 "ner",
-                model=self.model,
-                tokenizer=self.tokenizer,
+                model=model_name,
+                tokenizer=model_name,
                 aggregation_strategy="simple",
                 device=-1  # Use CPU for better compatibility
             )
@@ -28,7 +26,7 @@ class ResumeParser:
         except Exception as e:
             logging.error(f"Error loading NER model: {e}")
             raise
-    
+
     def parse_resume(self, file_path):
         """Parse a single resume file and extract structured information"""
         try:
@@ -36,18 +34,18 @@ class ResumeParser:
             text = self.text_extractor.extract_text(file_path)
             if not text or len(text.strip()) < 10:
                 return self._empty_result()
-            
+
             # Clean and preprocess text
             cleaned_text = self.data_processor.clean_text(text)
-            
-            # Apply NER model
+
+            # Apply NER model using the pipeline
             ner_results = self.ner_pipeline(cleaned_text)
-            
+
             # Extract structured information
             extracted_data = self._extract_structured_data(text, ner_results)
-            
+
             return extracted_data
-            
+
         except Exception as e:
             logging.error(f"Error parsing resume {file_path}: {e}")
             return self._empty_result()
@@ -90,11 +88,11 @@ class ResumeParser:
         
         for entity in ner_results:
             if entity['entity_group'].upper() in ['PER', 'PERSON', 'NAME']:
+                # The 'word' key is what the pipeline returns for the full entity
                 person_entities.append(entity['word'].strip())
         
         if person_entities:
-            # Take the first person entity and split into first/last name
-            full_name = person_entities[0].replace('#', '').strip()
+            full_name = person_entities[0].replace('##', '').strip()
             name_parts = full_name.split()
             
             if len(name_parts) >= 2:
@@ -108,21 +106,18 @@ class ResumeParser:
     def _extract_phone_number(self, text):
         """Extract Australian phone numbers using regex patterns"""
         
-        # Australian phone number patterns
         patterns = [
-            r'\b0[2-9]\d{2}\s?\d{3}\s?\d{3}\b',  # 02xx xxx xxx, 03xx xxx xxx, etc.
-            r'\b04\d{2}\s?\d{3}\s?\d{3}\b',      # Mobile: 04xx xxx xxx
-            r'\+61\s?[2-9]\s?\d{4}\s?\d{4}\b',   # International format
-            r'\+61\s?4\d{2}\s?\d{3}\s?\d{3}\b',  # International mobile
-            r'\b\d{4}\s?\d{3}\s?\d{3}\b'         # Generic 4-3-3 format
+            r'\b0[2-9]\d{2}\s?\d{3}\s?\d{3}\b',
+            r'\b04\d{2}\s?\d{3}\s?\d{3}\b',
+            r'\+61\s?[2-9]\s?\d{4}\s?\d{4}\b',
+            r'\+61\s?4\d{2}\s?\d{3}\s?\d{3}\b',
+            r'\b\d{4}\s?\d{3}\s?\d{3}\b'
         ]
         
         for pattern in patterns:
             matches = re.findall(pattern, text)
             if matches:
-                # Clean up the phone number
                 phone = matches[0].replace(' ', ' ').strip()
-                # Ensure proper spacing for Australian format
                 phone = re.sub(r'(\d{4})(\d{3})(\d{3})', r'\1 \2 \3', phone.replace(' ', ''))
                 return phone
         
@@ -137,13 +132,12 @@ class ResumeParser:
     def _extract_job_information(self, text, ner_results):
         """Extract current and previous job information"""
         
-        # Extract organizations and job titles from NER
         organizations = []
         job_titles = []
         
         for entity in ner_results:
             entity_type = entity['entity_group'].upper()
-            entity_text = entity['word'].replace('#', '').strip()
+            entity_text = entity['word'].replace('##', '').strip()
             
             if entity_type in ['ORG', 'ORGANIZATION', 'COMPANY']:
                 organizations.append(entity_text)
