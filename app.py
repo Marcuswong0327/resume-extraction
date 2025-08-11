@@ -42,7 +42,7 @@ def main():
         
         # Processing section
         if st.button("🔄 Process All Resumes", type="primary"):
-            process_resumes(uploaded_files, parser)
+            process_resumes(uploaded_files)
 
 def process_resumes(uploaded_files, parser):
     """Process all uploaded resumes and generate Excel output"""
@@ -211,6 +211,7 @@ if __name__ == "__main__":
         initial_sidebar_state="collapsed"
     )
     main()
+
 
 
 
