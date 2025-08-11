@@ -9,9 +9,3 @@ openpyxl
 python-dateutil
 numpy
 scipy
-
-threading
-tempfile
-os
-io
-zipfile
