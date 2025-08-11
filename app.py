@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from simple_resume_parser import SimpleResumeParser
 import tempfile
 import zipfile
 from io import BytesIO
@@ -213,3 +212,4 @@ if __name__ == "__main__":
         initial_sidebar_state="collapsed"
     )
     main()
+
