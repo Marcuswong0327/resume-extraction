@@ -6,7 +6,6 @@ transformers
 torch
 pandas
 openpyxl
-concurrent.futures
 re
 dateutil
 numpy
