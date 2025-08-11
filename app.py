@@ -15,7 +15,7 @@ def main():
     @st.cache_resource
     def load_parser():
     
-    parser = load_parser()
+        parser = load_parser()
     
     # File upload section
     st.header("📁 Upload Resumes")
@@ -211,5 +211,6 @@ if __name__ == "__main__":
         initial_sidebar_state="collapsed"
     )
     main()
+
 
 
