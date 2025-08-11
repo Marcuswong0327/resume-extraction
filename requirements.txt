@@ -6,7 +6,6 @@ transformers
 torch
 pandas
 openpyxl
-re
 dateutil
 numpy
 scipy
