@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from resume_parser import ResumeParser
 import tempfile
 import zipfile
 from io import BytesIO
@@ -14,8 +15,8 @@ def main():
     # Initialize the resume parser
     @st.cache_resource
     def load_parser():
-    
-        parser = load_parser()
+        return ResumeParser
+    parser = load_parser()
     
     # File upload section
     st.header("📁 Upload Resumes")
@@ -42,7 +43,7 @@ def main():
         
         # Processing section
         if st.button("🔄 Process All Resumes", type="primary"):
-            process_resumes(uploaded_files)
+            process_resumes(uploaded_files, parser)
 
 def process_resumes(uploaded_files, parser):
     """Process all uploaded resumes and generate Excel output"""
@@ -211,6 +212,7 @@ if __name__ == "__main__":
         initial_sidebar_state="collapsed"
     )
     main()
+
 
 
 
