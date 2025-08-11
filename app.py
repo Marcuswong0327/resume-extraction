@@ -14,7 +14,6 @@ def main():
     # Initialize the resume parser
     @st.cache_resource
     def load_parser():
-        return SimpleResumeParser()
     
     parser = load_parser()
     
@@ -212,4 +211,5 @@ if __name__ == "__main__":
         initial_sidebar_state="collapsed"
     )
     main()
+
 
