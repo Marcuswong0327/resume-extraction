@@ -208,7 +208,7 @@ def process_resumes(uploaded_files):
             st.info("📊 Check the results below and click 'Download Excel Report' to export the data.")
         else:
             st.warning("⚠️ No files were successfully processed. Please check your files and try again.")
-        
+            
     except Exception as e:
         st.error(f"❌ An unexpected error occurred: {str(e)}")
         st.session_state.processing_in_progress = False
@@ -241,7 +241,7 @@ def generate_and_download_excel():
             )
             
             st.success(f"✅ Excel report ready for download: {filename}")
-        
+            
     except Exception as e:
         st.error(f"❌ Error generating Excel report: {str(e)}")
         with st.expander("🔍 Error Details"):
