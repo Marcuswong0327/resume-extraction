@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import json
 import traceback
-from simple_pdf_processor import SimplePDFProcessor
+from pdf_processor import PDFProcessor
 from word_processor import WordProcessor
 from ai_parser import AIParser
-from simple_excel_exporter import SimpleExcelExporter
+from excel_exporter import ExcelExporter
 
 def main():
     st.set_page_config(
@@ -15,7 +15,7 @@ def main():
     )
     
     st.title("📄 Resume Parser & Analyzer")
-    st.markdown("Upload multiple PDF and Word resume files to extract candidate information using AI-powered parsing.")
+    st.markdown("Upload multiple PDF and Word resume files to achieve million biller!!!")
     
     # Initialize session state
     if 'processed_candidates' not in st.session_state:
@@ -36,10 +36,8 @@ def main():
         st.subheader("OpenRouter (DeepSeek V3)")
         if credentials_status['deepseek_status']:
             st.success("✅ OpenRouter API key configured")
-            st.info("Using DeepSeek V3 model via OpenRouter")
         else:
             st.error("❌ OpenRouter API key not found in secrets")
-            st.info("Please add 'DEEPSEEK_API_KEY' (OpenRouter key) to your secrets.toml file")
     
     # Main content area
     col1, col2 = st.columns([2, 1])
@@ -50,7 +48,7 @@ def main():
             "Choose PDF or Word files",
             type=['pdf', 'docx', 'doc'],
             accept_multiple_files=True,
-            help="Upload one or more PDF or Word resume files for processing"
+            help="Upload up to 100 files"
         )
         
         if uploaded_files:
@@ -75,18 +73,18 @@ def main():
         st.header("📊 Processing Status")
         
         if st.session_state.processing_in_progress:
-            st.info("🔄 Processing in progress...")
+            st.info("Processing")
         elif st.session_state.processed_candidates:
             st.metric("Processed Candidates", len(st.session_state.processed_candidates))
             
             if st.session_state.processing_complete:
-                st.success("✅ All resumes processed successfully!")
+                st.success("Processed successfully!")
                 
                 # Auto-generate Excel file
-                if st.button("📥 Download Excel Report", type="secondary", use_container_width=True):
+                if st.button("Download Excel Report", type="secondary", use_container_width=True):
                     generate_and_download_excel()
         else:
-            st.info("No candidates processed yet. Upload and process resume files to see results here.")
+            st.info("No candidates processed yet.")
     
     # Display processed candidates
     if st.session_state.processed_candidates:
@@ -136,7 +134,7 @@ def process_resumes(uploaded_files):
         # Initialize services
         with st.spinner("Initializing services..."):
             try:
-                pdf_processor = SimplePDFProcessor()
+                pdf_processor = PDFProcessor()
                 word_processor = WordProcessor()
                 ai_parser = AIParser(st.secrets["DEEPSEEK_API_KEY"])
             except Exception as e:
@@ -164,10 +162,10 @@ def process_resumes(uploaded_files):
                 extracted_text = ""
                 
                 if file_extension == 'pdf':
-                    with st.spinner(f"Extracting text from PDF {uploaded_file.name}..."):
+                    with st.spinner(f"Extracting {uploaded_file.name}..."):
                         extracted_text = pdf_processor.process_pdf_file(uploaded_file)
                 elif file_extension in ['doc', 'docx']:
-                    with st.spinner(f"Extracting text from Word document {uploaded_file.name}..."):
+                    with st.spinner(f"Extracting {uploaded_file.name}..."):
                         extracted_text = word_processor.process_word_file(uploaded_file)
                 else:
                     st.warning(f"⚠️ Unsupported file type: {file_extension}")
@@ -178,7 +176,7 @@ def process_resumes(uploaded_files):
                     continue
                 
                 # Parse resume using AI
-                with st.spinner(f"Analyzing {uploaded_file.name} with AI..."):
+                with st.spinner(f"Analyzing {uploaded_file.name}."):
                     parsed_data = ai_parser.parse_resume(extracted_text)
                 
                 # Add filename to the parsed data
@@ -188,24 +186,21 @@ def process_resumes(uploaded_files):
                 st.session_state.processed_candidates.append(parsed_data)
                 successful_processes += 1
                 
-                # Show success message
-                st.success(f"✅ Successfully processed {uploaded_file.name}")
                 
             except Exception as e:
-                st.error(f"❌ Error processing {uploaded_file.name}: {str(e)}")
+                st.error(f"Error processing {uploaded_file.name}: {str(e)}")
                 continue
         
         # Final progress update
         progress_bar.progress(1.0)
-        status_text.text(f"Processing complete! Successfully processed {successful_processes}/{total_files} files.")
+        status_text.text(f"Successfully processed {successful_processes}/{total_files} files.")
         
         # Mark processing as complete
         st.session_state.processing_complete = True
         st.session_state.processing_in_progress = False
         
         if successful_processes > 0:
-            st.success(f"🎉 Processing complete! Successfully processed {successful_processes}/{total_files} resume files.")
-            st.info("📊 Check the results below and click 'Download Excel Report' to export the data.")
+            st.success(f"Successfully processed {successful_processes}/{total_files} resume files.")
         else:
             st.warning("⚠️ No files were successfully processed. Please check your files and try again.")
             
@@ -224,7 +219,7 @@ def generate_and_download_excel():
             return
         
         with st.spinner("Generating Excel report..."):
-            exporter = SimpleExcelExporter()
+            exporter = ExcelExporter()
             excel_data = exporter.export_candidates(st.session_state.processed_candidates)
             
             # Create download button
@@ -233,7 +228,7 @@ def generate_and_download_excel():
             filename = f"resume_analysis_{timestamp}.xlsx"
             
             st.download_button(
-                label="📥 Download Excel Report",
+                label="Download Excel",
                 data=excel_data,
                 file_name=filename,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -249,3 +244,4 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
