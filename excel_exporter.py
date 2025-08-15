@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 import streamlit as st
 from datetime import datetime
 
-class SimpleExcelExporter:
+class ExcelExporter:
     """Handles exporting simplified candidate data to Excel format"""
     
     def __init__(self):
