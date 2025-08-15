@@ -102,6 +102,7 @@ Resume Text:
 {resume_text}
 
 Please extract and return ONLY a valid JSON object with the following structure:
+sometimes the information maybe on second page. but majority is first page. 
 {{
     "first_name": "candidate first name, normally on top few lines of first pages",
     "last_name": "candidate last name, normallly on top few lines of first page",
