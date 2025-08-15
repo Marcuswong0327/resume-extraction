@@ -32,7 +32,7 @@ class AIParser:
         """Test the OpenRouter API connection with DeepSeek V3"""
         try:
             test_payload = {
-                "model": "deepseek/deepseek-v3",
+                "model": "deepseek/deepseek-chat-v3-0324",
                 "messages": [{"role": "user", "content": "Hello"}],
                 "max_tokens": 10,
                 "temperature": 0.1
@@ -103,21 +103,21 @@ Resume Text:
 
 Please extract and return ONLY a valid JSON object with the following structure:
 {{
-    "first_name": "candidate first name",
-    "last_name": "candidate last name",
-    "mobile": "phone/mobile number",
-    "email": "email address",
-    "current_job_title": "current/most recent job title",
+    "first_name": "candidate first name, normally on top few lines of first pages",
+    "last_name": "candidate last name, normallly on top few lines of first page",
+    "mobile": "phone/mobile number, near around name area",
+    "email": "email address, near around mobile phone number area",
+    "current_job_title": "current/most recent job title based on latest date, normally the most recent job title will be listed on first",
     "current_company": "current/most recent company name",
-    "previous_job_title": "previous job title (before current one)",
+    "previous_job_title": "previous job title (before current one), based on the date, normally second job title is before current one",
     "previous_company": "previous company name (before current one)"
 }}
 
 Instructions for determining current vs previous positions:
 1. Look for dates in the work experience section
-2. The position with the most recent dates (or "present", "current", etc.) is the CURRENT position
+2. The position with the most recent dates (or "present", "current", "Now" etc.) is the CURRENT position
 3. The position immediately before the current one (chronologically) is the PREVIOUS position
-4. If only one job is mentioned, put it as current and leave previous fields empty
+4. If only one job is mentioned, put it as current and leave previous fields as empty
 5. Pay attention to date formats like "2020-present", "Jan 2023 - Current", "2022-2024", etc.
 
 Rules:
@@ -169,7 +169,7 @@ Rules:
         """
         try:
             payload = {
-                "model": "deepseek/deepseek-v3",
+                "model": "deepseek/deepseek-chat-v3-0324",
                 "messages": [
                     {
                         "role": "user",
