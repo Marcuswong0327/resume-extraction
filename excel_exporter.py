@@ -3,6 +3,7 @@ import io
 from typing import List, Dict, Any
 import streamlit as st
 from datetime import datetime
+from openpyxl.styles import NamedStyle, Font, PatternFill
 
 class ExcelExporter:
     """Handles exporting simplified candidate data to Excel format"""
@@ -55,14 +56,20 @@ class ExcelExporter:
                 workbook = writer.book
                 worksheet = writer.sheets['Resume Data']
                 
-                # Format headers
+
+                # Create a style for headers
+                header_style = NamedStyle(name="header_style")
+                header_style.font = Font(bold=True)
+                header_style.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+
+                # Register the style to the workbook
+                if "header_style" not in workbook.named_styles:
+                    workbook.add_named_style(header_style)
+
+                # Apply style to header row
                 for cell in worksheet[1]:
-                    cell.font = workbook.create_named_style("header_font").font
-                    cell.font.bold = True
-                    cell.fill = workbook.create_named_style("header_fill").fill
-                    cell.fill.start_color = "CCCCCC"
-                    cell.fill.end_color = "CCCCCC"
-                    cell.fill.fill_type = "solid"
+                    cell.style = header_style
+
                 
                 # Auto-adjust column widths
                 for column in worksheet.columns:
