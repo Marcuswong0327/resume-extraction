@@ -27,17 +27,7 @@ def main():
     
     # Check credentials availability
     credentials_status = check_credentials()
-    
-    # Sidebar for configuration
-    with st.sidebar:
-        st.header("⚙️ Configuration")
-        
-        # OpenRouter API Configuration
-        st.subheader("OpenRouter (DeepSeek V3)")
-        if credentials_status['deepseek_status']:
-            st.success("✅ OpenRouter API key configured")
-        else:
-            st.error("❌ OpenRouter API key not found in secrets")
+
     
     # Main content area
     col1, col2 = st.columns([2, 1])
@@ -244,4 +234,5 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
