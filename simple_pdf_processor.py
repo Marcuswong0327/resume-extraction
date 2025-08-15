@@ -2,7 +2,7 @@ import PyPDF2
 import streamlit as st
 from io import BytesIO
 
-class SimplePDFProcessor:
+class PDFProcessor:
     """Handles PDF text extraction without OCR"""
     
     def __init__(self):
@@ -48,7 +48,7 @@ class SimplePDFProcessor:
             extracted_text = '\n'.join(text_content)
             
             if not extracted_text.strip():
-                st.warning("No text could be extracted from this PDF. The file might be image-based or protected.")
+                st.warning("No text could be extracted from this PDF.")
                 
             return extracted_text
             
@@ -67,3 +67,4 @@ class SimplePDFProcessor:
             Extracted text as string
         """
         return self.extract_text_from_pdf(uploaded_file)
+
