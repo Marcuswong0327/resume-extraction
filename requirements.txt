@@ -1,7 +1,6 @@
 streamlit
 PyPDF2
 python-docx
-pywin32
 pandas
 openpyxl
 python-dateutil
