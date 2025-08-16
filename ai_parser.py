@@ -116,7 +116,7 @@ You are an expert resume parser. Analyze the following resume text and extract s
 Resume Text:
 {''.join(truncated_resumes)}
 
-Please extract and return ONLY a valid JSON array of object with the following structure:
+Please extract and return JSON objects with the following structure:
 sometimes the information maybe on second page. but majority is first page. 
 {{
     "first_name": "candidate first name, normally on top few lines of first pages",
