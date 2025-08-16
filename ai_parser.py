@@ -111,48 +111,38 @@ class AIParser:
             truncated_resumes.append(f"Resume {i}:\n{text}\n")
         
         prompt = f"""
-You are a strict JSON generator for resume parsing. Do not include any explanations or markdown. Output must be valid JSON only.
+You are an expert resume parser. Analyze the following resume text and extract structured information in JSON format.
 
-INPUT_RESUMES (ordered):
-{RESUME_BLOCK}
+Resume Text:
+{''.join(truncated_resumes)}
 
-TASK
-For each resume, extract the following fields:
-- first_name
-- last_name
-- mobile
-- email
-- current_job_title
-- current_company
-- previous_job_title
-- previous_company
+Please extract and return JSON objects with the following structure:
+sometimes the information maybe on second page. but majority is first page. 
+{{
+    "first_name": "candidate first name, normally on top few lines of first pages",
+    "last_name": "candidate last name, normallly on top few lines of first page",
+    "mobile": "phone/mobile number, near around name area",
+    "email": "email address, near around mobile phone number area",
+    "current_job_title": "current/most recent job title based on latest date, normally the most recent job title will be listed on first",
+    "current_company": "current/most recent company name",
+    "previous_job_title": "previous job title (before current one), based on the date, normally second job title is before current one",
+    "previous_company": "previous company name (before current one)"
+}}
 
-OUTPUT REQUIREMENTS
-1) Return a **JSON array** with length = {N}, where N is the number of input resumes.
-2) The i-th array item corresponds to Resume i (same order).
-3) Keys must be EXACTLY these (snake_case). No extra keys.
-4) All values must be strings. If unknown, use "".
-5) Do NOT wrap the JSON in code fences or add prose.
+Instructions for determining current vs previous positions:
+1. Look for dates in the work experience section
+2. The position with the most recent dates (or "present", "current", "Now" etc.) is the CURRENT position
+3. The position immediately before the current one (chronologically) is the PREVIOUS position
+4. If only one job is mentioned, put it as current and leave previous fields as empty
+5. Pay attention to date formats like "2020-present", "Jan 2023 - Current", "2022-2024", etc.
 
-DISAMBIGUATION RULES
-- Name splitting: if the full name has >= 2 tokens, first_name = first token, last_name = the rest (unchanged). If only one token, first_name = token, last_name = "".
-- Mobile: return the first plausible phone number found (prefer header/top of first page if present). Keep original formatting.
-- Email: return the first valid email found.
-- Current vs previous roles: the job with the most recent end date (or ongoing markers like "Present", "Current", "Now") is current. The chronologically prior job is previous. If only one job exists, fill current_* and leave previous_* empty.
-
-OUTPUT JSON EXAMPLE (shape only; values are examples):
-[
-  {
-    "first_name": "Alicia",
-    "last_name": "Tan Li Mei",
-    "mobile": "+60123456789",
-    "email": "alicia.tan@example.com",
-    "current_job_title": "Software Engineer",
-    "current_company": "Grab",
-    "previous_job_title": "Intern",
-    "previous_company": "Petronas"
-  }
-]
+Rules:
+1. Return ONLY valid JSON, no additional text or explanations
+2. If information is not found, use empty string ""
+3. Be very careful with dates to correctly identify current vs previous positions
+4. Extract full names and split into first_name and last_name
+5. Look for mobile/phone numbers in various formats
+6. Be thorough and accurate in extraction
 
 """
         return prompt
