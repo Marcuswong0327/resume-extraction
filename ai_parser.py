@@ -92,7 +92,7 @@ class AIParser:
             st.error(f"Error parsing batch resumes: {str(e)}")
             return [self._create_empty_structure() for _ in resume_text]
 
-    def _create_batch_prompt(self, resume_text):
+    def _create_batch_prompt(self, resume_texts):
         """
         Create a structured prompt for resume parsing
         
@@ -105,7 +105,7 @@ class AIParser:
         # Truncate text if too long to avoid token limits
         max_chars = 15000
         truncated_resumes = [] 
-        for i, text in enumerate(resume_text, start=1):
+        for i, text in enumerate(resume_texts, start=1):
             if len(text) > max_chars:
                 text = text[:max_chars] + "..." 
             truncated_resumes.append(f"Resume {i}:\n{text}\n")
@@ -114,9 +114,9 @@ class AIParser:
 You are an expert resume parser. Analyze the following resume text and extract structured information in JSON format.
 
 Resume Text:
-{resume_text}
+{''.join(truncated_resumes)}
 
-Please extract and return ONLY a valid JSON object with the following structure:
+Please extract and return ONLY a valid JSON array of object with the following structure:
 sometimes the information maybe on second page. but majority is first page. 
 {{
     "first_name": "candidate first name, normally on top few lines of first pages",
