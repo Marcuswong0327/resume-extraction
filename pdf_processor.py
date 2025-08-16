@@ -20,6 +20,7 @@ class PDFProcessor:
             Extracted text as string
         """
         try:
+            uploaded_file.seek(0)
             # Read the uploaded file content
             file_content = uploaded_file.read()
             
@@ -67,4 +68,5 @@ class PDFProcessor:
             Extracted text as string
         """
         return self.extract_text_from_pdf(uploaded_file)
+
 
