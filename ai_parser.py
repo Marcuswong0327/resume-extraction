@@ -77,7 +77,7 @@ class AIParser:
 
     def parse_resume_batch(self, resume_text):
         try:
-            if not resume_texts:
+            if not resume_text:
                 return[]
             # Build prompt with multiple resumes 
             prompt = self._create_batch_prompt(resume_text)
