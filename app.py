@@ -167,7 +167,7 @@ def process_resumes(uploaded_files):
             for i, future in enumerate(as_completed(future_to_file)):
                 uploaded_file = future_to_file[future]
                 try:
-                    result = future.result)_
+                    result = future.result()
                     if result: 
                         st.session_state.processed_candidates.append(result)
                         successful_processes += 1
@@ -235,6 +235,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
