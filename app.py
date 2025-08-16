@@ -66,7 +66,14 @@ def main():
         elif st.session_state.processed_candidates:
             st.metric("Processed Candidates", len(st.session_state.processed_candidates))
             
-
+            if st.session_state.processing_complete:
+                st.success("Processed successfully!")
+                
+                # Auto-generate Excel file
+                if st.button("Download Excel Report", type="secondary", use_container_width=True):
+                    generate_and_download_excel()
+        else:
+            st.info("No candidates processed yet.")
     
     # Display processed candidates
     if st.session_state.processed_candidates:
@@ -204,13 +211,13 @@ def generate_and_download_excel():
             # Create download button
             filename = f"resume_analysis.xlsx"
             
-            st.download_button(
+
                 label="Download Excel",
                 data=excel_data,
                 file_name=filename,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
-            )
+            
             
     except Exception as e:
         st.error(f"❌ Error generating Excel report: {str(e)}")
@@ -219,6 +226,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
