@@ -8,6 +8,7 @@ from ai_parser import AIParser
 from excel_exporter import ExcelExporter
 import base64
 
+
 def main():
     st.set_page_config(
         page_title="Resume Parser & Analyzer",
@@ -153,12 +154,13 @@ def process_resumes(uploaded_files):
             if not extracted_text.strip():
                 st.warning(f"⚠️ No text could be extracted from {uploaded_file.name}")
 
+
             parsed_data = ai_parser.parse_resume(extracted_text)
             parsed_data['filename'] = uploaded_file.name
             return parsed_data
 
+
         # Run parallel with 16 workers
-        result = []
         with ThreadPoolExecutor(max_workers=16) as executor: 
             future_to_file = {
                 executor.submit(process_single_file, f): f for f in uploaded_files
@@ -235,6 +237,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
