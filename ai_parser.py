@@ -75,22 +75,22 @@ class AIParser:
         else:
             return self._create_empty_structure()
 
-    def parse_resume_batch(self, resume_texts):
+    def parse_resume_batch(self, resume_text):
         try:
             if not resume_texts:
                 return[]
             # Build prompt with multiple resumes 
-            prompt = self._create_batch_prompt(resume_texts)
+            prompt = self._create_batch_prompt(resume_text)
 
             #Call API 
             response = self._make_api_call_with_retry(prompt)
             if response: 
-                return self._parse_batch_api_response(response, len(resume_texts))
+                return self._parse_batch_api_response(response, len(resume_text))
             else: 
-                return [self._create_empty_structure() for _ in resume_texts] 
+                return [self._create_empty_structure() for _ in resume_text] 
         except Exception as e:
             st.error(f"Error parsing batch resumes: {str(e)}")
-            return [self._create_empty_structure() for _ in resume_texts]
+            return [self._create_empty_structure() for _ in resume_text]
 
     def _create_batch_prompt(self, resume_text):
         """
@@ -105,7 +105,7 @@ class AIParser:
         # Truncate text if too long to avoid token limits
         max_chars = 15000
         truncated_resumes = [] 
-        for i, text in enumerate(resume_texts, start=1):
+        for i, text in enumerate(resume_text, start=1):
             if len(text) > max_chars:
                 text = text[:max_chars] + "..." 
             truncated_resumes.append(f"Resume {i}:\n{text}\n")
