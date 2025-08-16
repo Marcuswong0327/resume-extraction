@@ -212,11 +212,11 @@ def generate_and_download_excel():
             filename = f"resume_analysis.xlsx"
             
 
-                label="Download Excel",
-                data=excel_data,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+            label="Download Excel",
+            data=excel_data,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
             
             
     except Exception as e:
@@ -226,6 +226,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
