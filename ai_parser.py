@@ -71,7 +71,7 @@ class AIParser:
         response = self._make_api_call_with_retry(prompt)
             
         if response:
-            return self._parse_api_response(response)
+            return self._parse_batch_api_response(response)
         else:
             return self._create_empty_structure()
 
