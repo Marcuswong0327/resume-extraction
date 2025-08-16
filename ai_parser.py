@@ -224,7 +224,7 @@ Rules:
         except Exception as e:
             raise Exception(f"Error calling DeepSeek API: {str(e)}")
     
-    def _parse_api_response(self, response_text):
+    def _parse_batch_api_response(self, response_text, expected_count):
         """
         Parse API response and extract JSON data
         
@@ -243,34 +243,24 @@ Rules:
                 response_text = response_text[7:]
             elif response_text.startswith("```"):
                 response_text = response_text[3:]
-                
             if response_text.endswith("```"):
                 response_text = response_text[:-3]
-            
-            response_text = response_text.strip()
-            
-            # Try to find JSON object in the text
-            start_idx = response_text.find('{')
-            end_idx = response_text.rfind('}')
-            
-            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                json_text = response_text[start_idx:end_idx + 1]
-                parsed_data = json.loads(json_text)
-            else:
-                # Try parsing the entire text
-                parsed_data = json.loads(response_text)
-            
-            # Validate structure
-            return self._validate_parsed_data(parsed_data)
-            
-        except json.JSONDecodeError as e:
-            st.warning(f"Failed to parse AI response as JSON: {str(e)}")
-            st.text("Raw response:")
-            st.code(response_text)
-            return self._create_empty_structure()
-        except Exception as e:
-            st.warning(f"Error processing AI response: {str(e)}")
-            return self._create_empty_structure()
+
+            data = json.loads(response_text)
+            if not isinstance(data, list):
+                raise ValueError("Batch response is not a JSON array") 
+
+            # Ensure correcct number of items 
+            results = []
+            for i in range(expected_count): 
+                item = data[i] if i < len(data) else{}
+                results.append(self._validate_parsed_data(item))
+            return results 
+    except Exception as e: 
+        st.warning(f"Error parsing batch API response: {str(e)}")
+        st.code(response_text) 
+        return [self._create_empty_structure() for _ in range(expected_count)]
+
     
     def _validate_parsed_data(self, data):
         """
