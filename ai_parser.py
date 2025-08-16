@@ -65,7 +65,7 @@ class AIParser:
             return self._create_empty_structure()
             
         # Create prompt for resume parsing
-        prompt = self._create_parsing_prompt(resume_text)
+        prompt = self._create_batch_prompt(resume_text)
             
         # Make API call to DeepSeek with retries
         response = self._make_api_call_with_retry(prompt)
