@@ -85,7 +85,7 @@ class AIParser:
             #Call API 
             response = self._make_api_call_with_retry(prompt)
             if response: 
-                return self._parse_batch_api_response(response, len(resume_text))
+                return self._parse_batch_api_response(response, expected_count = len(resume_text))
             else: 
                 return [self._create_empty_structure() for _ in resume_text] 
         except Exception as e:
