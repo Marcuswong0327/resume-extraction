@@ -262,15 +262,14 @@ Rules:
             return [self._create_empty_structure() for _ in range(expected_count)]
 
     
-    def _validate_parsed_data(self, data):
-    # Ensure data is a dictionary
-        if isinstance(data, list):
-        # If it’s a list, take the first element if it’s a dict, else empty dict
-            data = data[0] if data and isinstance(data[0], dict) else {}
-        elif not isinstance(data, dict):
+   def _validate_parsed_data(self, data):
+    # Unwrap nested lists until we get a dict or empty
+        while isinstance(data, list):
+            data = data[0] if data else {}
+    
+        if not isinstance(data, dict):
             data = {}
 
-    # Now safely extract fields
         validated_data = {
             "first_name": str(data.get("first_name", "")).strip(),
             "last_name": str(data.get("last_name", "")).strip(),
