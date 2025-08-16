@@ -279,8 +279,8 @@ Rules:
     
     def _validate_parsed_data(self, data):
     # Unwrap nested lists until we get a dict or empty
-        while isinstance(data, list):
-            data = data[0] if data else {}
+        while isinstance(data, list) and data:
+            data = data[0] 
 
         if not isinstance(data, dict):
             data = {}
