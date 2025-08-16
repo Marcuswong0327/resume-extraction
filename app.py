@@ -213,7 +213,6 @@ def generate_and_download_excel():
             # Encode to base64 for direct download
             b64 = base64.b64encode(excel_data).decode()
             filename = "resume_analysis.xlsx"
-            href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" resume_analysis="{filename}">📥 Click here if download does not start</a>'
             
             # Auto trigger download
             js = f"""
@@ -236,6 +235,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
