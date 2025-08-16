@@ -71,7 +71,7 @@ class AIParser:
         response = self._make_api_call_with_retry(prompt)
             
         if response:
-            return self._parse_batch_api_response(response, expected_count = len(resume_text))
+            return self._parse_batch_api_response(response, expected_count = 1)
         else:
             return self._create_empty_structure()
 
@@ -255,7 +255,7 @@ Rules:
                 #Flatten nested list into one level 
                 flattened = []
                 for item in data: 
-                    if isintance(item, list):
+                    if isinstance(item, list):
                         flattened.append(item[0] if item else{}) 
                     else: 
                         flattened.append(item) 
