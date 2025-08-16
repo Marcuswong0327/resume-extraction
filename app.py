@@ -15,7 +15,8 @@ def main():
     )
     
     st.title("📄 Resume Parser & Analyzer")
-    st.markdown("Upload multiple PDF and Word resume files to achieve million biller!!!")
+    st.markdown("Upload multiple PDF and Word resume files")
+    st.markdown("Road to Million Biller!!!")
     
     # Initialize session state
     if 'processed_candidates' not in st.session_state:
@@ -35,10 +36,9 @@ def main():
     with col1:
         st.header("📤 Upload Resume Files")
         uploaded_files = st.file_uploader(
-            "Choose PDF or Word files",
+            "Upload up to 100 files",
             type=['pdf', 'docx', 'doc'],
             accept_multiple_files=True,
-            help="Upload up to 100 files"
         )
         
         if uploaded_files:
@@ -99,7 +99,6 @@ def main():
         st.dataframe(df, use_container_width=True)
 
 def check_credentials():
-    """Check if required credentials are available in secrets"""
     deepseek_status = False
     
     try:
@@ -115,7 +114,6 @@ def check_credentials():
     }
 
 def process_resumes(uploaded_files):
-    """Process uploaded resume files"""
     st.session_state.processing_in_progress = True
     st.session_state.processing_complete = False
     st.session_state.processed_candidates = []
@@ -213,9 +211,7 @@ def generate_and_download_excel():
             excel_data = exporter.export_candidates(st.session_state.processed_candidates)
             
             # Create download button
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"resume_analysis_{timestamp}.xlsx"
+            filename = f"resume_analysis.xlsx"
             
             st.download_button(
                 label="Download Excel",
@@ -225,8 +221,6 @@ def generate_and_download_excel():
                 use_container_width=True
             )
             
-            st.success(f"✅ Excel report ready for download: {filename}")
-            
     except Exception as e:
         st.error(f"❌ Error generating Excel report: {str(e)}")
         with st.expander("🔍 Error Details"):
@@ -234,5 +228,6 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
