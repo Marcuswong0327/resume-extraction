@@ -180,7 +180,6 @@ def process_resumes(uploaded_files):
         
         # Final progress update
         progress_bar.progress(1.0)
-        status_text.text(f"Successfully processed {successful_processes}/{total_files} files.")
         
         # Mark processing as complete
         st.session_state.processing_complete = True
@@ -227,6 +226,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
