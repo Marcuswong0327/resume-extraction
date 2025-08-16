@@ -138,51 +138,51 @@ def process_resumes(uploaded_files):
         
         total_files = len(uploaded_files)
         successful_processes = 0
+
+        def process_single_file(uploaded_file):
+            file_extension = uploaded_file.name.lower().split('.')[-1]
+            extracted_text = ""
         
-        for i, uploaded_file in enumerate(uploaded_files):
-            try:
-                current_progress = (i / total_files)
-                progress_bar.progress(current_progress)
-                status_text.text(f"Processing {uploaded_file.name}... ({i+1}/{total_files})")
+            if file_extension == 'pdf':
+                extracted_text = pdf_processor.process_pdf_file(uploaded_file)
+            elif file_extension in ['doc', 'docx']:
+                extracted_text = word_processor.process_word_file(uploaded_file)
+            else:
+                st.warning(f"⚠️ Unsupported file type: {file_extension}")
                 
-                # Extract text based on file type
-                file_extension = uploaded_file.name.lower().split('.')[-1]
-                extracted_text = ""
+            if not extracted_text.strip():
+                st.warning(f"⚠️ No text could be extracted from {uploaded_file.name}")
+
+            parsed_data = ai_parser.parse_resume(extracted_text)
+            parsed_data['filename'] = uploaded_file.name
+            return parsed_data
+
+        # Run parallel with 16 workers
+        result = []
+        with ThreadPoolExecutor(max_workers=16) as executor: 
+            future_to_file = {
+                executor.submit(process_single_file, f): f for f in uploaded_files
+            }
+
+            for i, future in enumerate(as_completed(future_to_file)):
+                uploaded_file = future_to_file[future]
+                try:
+                    result = future.result)_
+                    if result: 
+                        st.session_state.processed_candidates.append(result)
+                        successful_processes += 1
+                except Exception as e: 
+                    st.error(f"Erorr processing {uploaded_file.name}: {str(e)}")
+
+                #Update progress bar 
+                progress = (i+1) / total_files 
+                progress_bar.progress(progress) 
+                status_text.text(f"Processed {i+1} / {total_files} resumes")
                 
-                if file_extension == 'pdf':
-                    with st.spinner(f"Extracting {uploaded_file.name}..."):
-                        extracted_text = pdf_processor.process_pdf_file(uploaded_file)
-                elif file_extension in ['doc', 'docx']:
-                    with st.spinner(f"Extracting {uploaded_file.name}..."):
-                        extracted_text = word_processor.process_word_file(uploaded_file)
-                else:
-                    st.warning(f"⚠️ Unsupported file type: {file_extension}")
-                    continue
-                
-                if not extracted_text.strip():
-                    st.warning(f"⚠️ No text could be extracted from {uploaded_file.name}")
-                    continue
-                
-                # Parse resume using AI
-                with st.spinner(f"Analyzing {uploaded_file.name}."):
-                    parsed_data = ai_parser.parse_resume(extracted_text)
-                
-                # Add filename to the parsed data
-                parsed_data['filename'] = uploaded_file.name
-                
-                # Add to results
-                st.session_state.processed_candidates.append(parsed_data)
-                successful_processes += 1
-                
-                
-            except Exception as e:
-                st.error(f"Error processing {uploaded_file.name}: {str(e)}")
-                continue
+    
         
         # Final progress update
         progress_bar.progress(1.0)
-        
-        # Mark processing as complete
         st.session_state.processing_complete = True
         st.session_state.processing_in_progress = False
         
@@ -235,6 +235,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
