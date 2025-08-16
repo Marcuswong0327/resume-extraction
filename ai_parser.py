@@ -277,26 +277,26 @@ Rules:
             return [self._create_empty_structure() for _ in range(expected_count)]
 
     
-def _validate_parsed_data(self, data):
+    def _validate_parsed_data(self, data):
     # Unwrap nested lists until we get a dict or empty
-    while isinstance(data, list):
-        data = data[0] if data else {}
+        while isinstance(data, list):
+            data = data[0] if data else {}
 
-    if not isinstance(data, dict):
-        data = {}
+        if not isinstance(data, dict):
+            data = {}
 
-    validated_data = {
-        "first_name": str(data.get("first_name", "")).strip(),
-        "last_name": str(data.get("last_name", "")).strip(),
-        "mobile": str(data.get("mobile", "")).strip(),
-        "email": str(data.get("email", "")).strip(),
-        "current_job_title": str(data.get("current_job_title", "")).strip(),
-        "current_company": str(data.get("current_company", "")).strip(),
-        "previous_job_title": str(data.get("previous_job_title", "")).strip(),
-        "previous_company": str(data.get("previous_company", "")).strip()
-    }
+        validated_data = {
+            "first_name": str(data.get("first_name", "")).strip(),
+            "last_name": str(data.get("last_name", "")).strip(),
+            "mobile": str(data.get("mobile", "")).strip(),
+            "email": str(data.get("email", "")).strip(),
+            "current_job_title": str(data.get("current_job_title", "")).strip(),
+            "current_company": str(data.get("current_company", "")).strip(),
+            "previous_job_title": str(data.get("previous_job_title", "")).strip(),
+            "previous_company": str(data.get("previous_company", "")).strip()
+        }
 
-    return validated_data
+        return validated_data
 
     
     def _create_empty_structure(self):
