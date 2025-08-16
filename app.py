@@ -69,7 +69,11 @@ def main():
             
             if st.session_state.processing_complete:
                 st.success("Processed successfully!")
-                generate_and_download_excel()
+
+                if st.button("Download Excel Report", type = "secondary",use_container_width=True):
+                    generate_and_download_excel()
+            else:
+                st.info("No candidates processed yet.")
      
     
     # Display processed candidates
@@ -232,6 +236,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
