@@ -247,15 +247,30 @@ Rules:
                 response_text = response_text[:-3]
 
             data = json.loads(response_text)
-            if not isinstance(data, list):
-                raise ValueError("Batch response is not a JSON array") 
 
-            # Ensure correcct number of items 
+            #Normalize response into a flat list of dicts
+            if isinstance(data, dict):
+                data = [data] # single dict into list 
+            elif isinstance(data, list):
+                #Flatten nested list into one level 
+                flattened = []
+                for item in data: 
+                    if isintance(item, list):
+                        flattened.append(item[0] if item else{}) 
+                    else: 
+                        flattened.append(item) 
+                data = flattened 
+            else: 
+                data = [{} for _ in range(expected_count)]
+
+
+            # Ensure exactly expected_count items 
             results = []
             for i in range(expected_count): 
                 item = data[i] if i < len(data) else{}
                 results.append(self._validate_parsed_data(item))
             return results 
+            
         except Exception as e: 
             st.warning(f"Error parsing batch API response: {str(e)}")
             st.code(response_text) 
