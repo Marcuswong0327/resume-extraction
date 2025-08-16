@@ -221,7 +221,7 @@ def generate_and_download_excel():
             <meta http-equiv="refresh" content="0; url=data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" />
             </head>
             <body>
-            {href}
+            
             </body>
             </html>
             """
@@ -235,6 +235,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
