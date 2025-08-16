@@ -61,26 +61,38 @@ class AIParser:
         Returns:
             Structured resume data as dictionary
         """
-        try:
-            if not resume_text or not resume_text.strip():
-                return self._create_empty_structure()
-            
-            # Create prompt for resume parsing
-            prompt = self._create_parsing_prompt(resume_text)
-            
-            # Make API call to DeepSeek with retries
-            response = self._make_api_call_with_retry(prompt)
-            
-            if response:
-                return self._parse_api_response(response)
-            else:
-                return self._create_empty_structure()
-                
-        except Exception as e:
-            st.error(f"Error parsing resume with AI: {str(e)}")
+        if not resume_text or not resume_text.strip():
             return self._create_empty_structure()
-    
-    def _create_parsing_prompt(self, resume_text):
+            
+        # Create prompt for resume parsing
+        prompt = self._create_parsing_prompt(resume_text)
+            
+        # Make API call to DeepSeek with retries
+        response = self._make_api_call_with_retry(prompt)
+            
+        if response:
+            return self._parse_api_response(response)
+        else:
+            return self._create_empty_structure()
+
+    def parse_resume_batch(self, resume_texts):
+        try:
+            if not resume_texts:
+                return[]
+            # Build prompt with multiple resumes 
+            prompt = self._create_batch_prompt(resume_texts)
+
+            #Call API 
+            response = self._make_api_call_with_retry(prompt)
+            if response: 
+                return self._parse_batch_api_response(response, len(resume_texts))
+            else: 
+                return [self._create_empty_structure() for _ in resume_texts] 
+        except Exception as e:
+            st.error(f"Error parsing batch resumes: {str(e)}")
+            return [self._create_empty_structure() for _ in resume_texts]
+
+    def _create_batch_prompt(self, resume_text):
         """
         Create a structured prompt for resume parsing
         
@@ -92,8 +104,11 @@ class AIParser:
         """
         # Truncate text if too long to avoid token limits
         max_chars = 15000
-        if len(resume_text) > max_chars:
-            resume_text = resume_text[:max_chars] + "..."
+        truncated_resumes = [] 
+        for i, text in enumerate(resume_texts, start=1):
+            if len(text) > max_chars:
+                text = text[:max_chars] + "..." 
+            truncated_resumes.append(f"Resume {i}:\n{text}\n")
         
         prompt = f"""
 You are an expert resume parser. Analyze the following resume text and extract structured information in JSON format.
