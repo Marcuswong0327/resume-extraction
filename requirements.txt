@@ -5,4 +5,3 @@ pandas
 openpyxl
 python-dateutil
 numpy
-scipy
