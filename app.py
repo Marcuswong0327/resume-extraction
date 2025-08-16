@@ -6,6 +6,7 @@ from pdf_processor import PDFProcessor
 from word_processor import WordProcessor
 from ai_parser import AIParser
 from excel_exporter import ExcelExporter
+import base64
 
 def main():
     st.set_page_config(
@@ -68,12 +69,8 @@ def main():
             
             if st.session_state.processing_complete:
                 st.success("Processed successfully!")
-                
-                # Auto-generate Excel file
-                if st.button("Download Excel Report", type="secondary", use_container_width=True):
-                    generate_and_download_excel()
-        else:
-            st.info("No candidates processed yet.")
+                generate_and_download_excel()
+     
     
     # Display processed candidates
     if st.session_state.processed_candidates:
@@ -197,35 +194,45 @@ def process_resumes(uploaded_files):
         with st.expander("🔍 Error Details"):
             st.code(traceback.format_exc())
 
+
 def generate_and_download_excel():
-    """Generate and download Excel report"""
+    """Generate and auto-download Excel report"""
     try:
         if not st.session_state.processed_candidates:
             st.warning("No candidate data to export.")
             return
-        
+
         with st.spinner("Generating Excel report..."):
             exporter = ExcelExporter()
             excel_data = exporter.export_candidates(st.session_state.processed_candidates)
-            
-            # Create download button
-            filename = f"resume_analysis.xlsx"
-            
 
-            label="Download Excel",
-            data=excel_data,
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
+            # Encode to base64 for direct download
+            b64 = base64.b64encode(excel_data).decode()
+            filename = "resume_analysis.xlsx"
+            href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}">📥 Click here if download does not start</a>'
             
-            
+            # Auto trigger download
+            js = f"""
+            <html>
+            <head>
+            <meta http-equiv="refresh" content="0; url=data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" />
+            </head>
+            <body>
+            {href}
+            </body>
+            </html>
+            """
+            st.components.v1.html(js, height=0)
+
     except Exception as e:
         st.error(f"❌ Error generating Excel report: {str(e)}")
         with st.expander("🔍 Error Details"):
             st.code(traceback.format_exc())
 
+
 if __name__ == "__main__":
     main()
+
 
 
 
