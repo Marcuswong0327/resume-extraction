@@ -256,10 +256,10 @@ Rules:
                 item = data[i] if i < len(data) else{}
                 results.append(self._validate_parsed_data(item))
             return results 
-    except Exception as e: 
-        st.warning(f"Error parsing batch API response: {str(e)}")
-        st.code(response_text) 
-        return [self._create_empty_structure() for _ in range(expected_count)]
+        except Exception as e: 
+            st.warning(f"Error parsing batch API response: {str(e)}")
+            st.code(response_text) 
+            return [self._create_empty_structure() for _ in range(expected_count)]
 
     
     def _validate_parsed_data(self, data):
