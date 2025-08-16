@@ -15,7 +15,6 @@ def main():
     )
     
     st.title("📄 Resume Parser & Analyzer")
-    st.markdown("Upload multiple PDF and Word resume files")
     st.markdown("Road to Million Biller!!!")
     
     # Initialize session state
@@ -228,6 +227,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
