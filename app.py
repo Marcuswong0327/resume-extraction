@@ -7,6 +7,7 @@ from word_processor import WordProcessor
 from ai_parser import AIParser
 from excel_exporter import ExcelExporter
 import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def main():
@@ -237,6 +238,7 @@ def generate_and_download_excel():
 
 if __name__ == "__main__":
     main()
+
 
 
 
