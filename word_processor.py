@@ -43,6 +43,7 @@ class WordProcessor:
         Process DOCX file and extract text.
         """
         try:
+            uploaded_file.seek(0) 
             file_extension = uploaded_file.name.lower().split('.')[-1]
 
             if file_extension != "docx":
