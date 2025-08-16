@@ -263,16 +263,14 @@ Rules:
 
     
     def _validate_parsed_data(self, data):
-        """
-        Validate and clean parsed data structure
-        
-        Args:
-            data: Parsed data dictionary
-            
-        Returns:
-            Validated and cleaned data dictionary
-        """
-        # Ensure all required fields exist
+    # Ensure data is a dictionary
+        if isinstance(data, list):
+        # If it’s a list, take the first element if it’s a dict, else empty dict
+            data = data[0] if data and isinstance(data[0], dict) else {}
+        elif not isinstance(data, dict):
+            data = {}
+
+    # Now safely extract fields
         validated_data = {
             "first_name": str(data.get("first_name", "")).strip(),
             "last_name": str(data.get("last_name", "")).strip(),
@@ -283,8 +281,9 @@ Rules:
             "previous_job_title": str(data.get("previous_job_title", "")).strip(),
             "previous_company": str(data.get("previous_company", "")).strip()
         }
-        
+
         return validated_data
+
     
     def _create_empty_structure(self):
         """
