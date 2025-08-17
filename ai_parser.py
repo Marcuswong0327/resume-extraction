@@ -181,33 +181,27 @@ class AIParser:
 
     def _create_single_prompt(self, resume_text): 
         """Create optimized prompt for single resume parsing"""
-        max_chars = 12000  # Reduced to ensure we stay within token limits
+        max_chars = 8000  # Further reduced to ensure API stability with larger batches
         if len(resume_text) > max_chars: 
             resume_text = resume_text[:max_chars] + "..."
             
-        prompt = f"""You are an expert resume parser. Extract structured information from this resume text and return ONLY a valid JSON object.
+        prompt = f"""Extract resume data as JSON only:
 
-Resume Text:
 {resume_text}
 
-Return ONLY this JSON structure (no additional text, explanations, or markdown):
+Return only:
 {{
-    "first_name": "candidate first name",
-    "last_name": "candidate last name", 
-    "mobile": "phone/mobile number",
-    "email": "email address",
-    "current_job_title": "most recent job title",
-    "current_company": "most recent company name",
-    "previous_job_title": "previous job title", 
-    "previous_company": "previous company name"
+    "first_name": "",
+    "last_name": "", 
+    "mobile": "",
+    "email": "",
+    "current_job_title": "",
+    "current_company": "",
+    "previous_job_title": "", 
+    "previous_company": ""
 }}
 
-Rules:
-1. Return ONLY valid JSON - no markdown, no explanations
-2. If information not found, use empty string ""
-3. Identify current vs previous by dates (most recent = current)
-4. Look for "present", "current", "now" for current positions
-5. Split full names into first_name and last_name"""
+Most recent job = current. Use "" if not found."""
         
         return prompt
     
@@ -247,7 +241,7 @@ Rules:
         
         return prompt
     
-    def _make_api_call_with_retry(self, prompt, context, max_retries=3):
+    def _make_api_call_with_retry(self, prompt, context, max_retries=2):
         """
         Make API call to DeepSeek V3 with retry logic and better error handling
         """
@@ -283,8 +277,8 @@ Rules:
                         "content": prompt
                     }
                 ],
-                "max_tokens": 2000,  # Reduced for more focused responses
-                "temperature": 0.1,
+                "max_tokens": 1000,  # Minimal tokens for fastest response
+                "temperature": 0.05,  # Lower temperature for faster, more consistent responses
                 "stream": False
             }
             
@@ -292,7 +286,7 @@ Rules:
                 self.base_url,
                 headers=self.headers,
                 json=payload,
-                timeout=90  # Increased timeout
+                timeout=30  # Fast timeout for quick processing
             )
             
             if response.status_code == 200:
