@@ -193,7 +193,7 @@ Rules:
 Resume Texts:
 {''.join(truncated_resumes)}
 """
-    return prompt
+        return prompt
     
     def _make_api_call_with_retry(self, prompt, max_retries=3):
         """
