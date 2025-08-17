@@ -65,7 +65,7 @@ class AIParser:
             return self._create_empty_structure()
             
         # Create prompt for resume parsing
-        prompt = self._create_batch_prompt(resume_text)
+        prompt = self._create_single_prompt(resume_text)
             
         # Make API call to DeepSeek with retries
         response = self._make_api_call_with_retry(prompt)
@@ -74,6 +74,7 @@ class AIParser:
             return self._parse_batch_api_response(response, expected_count = 1)
         else:
             return self._create_empty_structure()
+
 
     def parse_resume_batch(self, resume_text):
         try:
@@ -92,16 +93,59 @@ class AIParser:
             st.error(f"Error parsing batch resumes: {str(e)}")
             return [self._create_empty_structure() for _ in resume_text]
 
+    def parse_resumes_in_parallel(self, all_resumes, batch_size=5, max_workers=16)
+        results = []
+        with ThreadPoolExecutor(max_workers = max_workers) as executor: 
+            futures = [
+                executor.submit(self.parse_resume_batch, all_resumes[i:i+batch_size])
+                for i in range(0, len(all_resumes), batch_size) 
+            ]
+            for f in futures: 
+                results.extend(f.result()) 
+        return results 
+
+    def _create_single_prompt(self, resume_text): 
+        max_chars = 15000
+        if len(resume_text) > max_chars: 
+            resume_text = resume_text[:max_chars] + "..."
+        prompt = f"""
+You are an expert resume parser. Analyze the following resume text and extract structured information in JSON format.
+
+Resume Text:
+{resume_text}
+
+Please extract and return ONLY a valid JSON object with the following structure:
+sometimes the information maybe on second page. but majority is first page. 
+{{
+    "first_name": "candidate first name, normally on top few lines of first pages",
+    "last_name": "candidate last name, normallly on top few lines of first page",
+    "mobile": "phone/mobile number, near around name area",
+    "email": "email address, near around mobile phone number area",
+    "current_job_title": "current/most recent job title based on latest date, normally the most recent job title will be listed on first",
+    "current_company": "current/most recent company name",
+    "previous_job_title": "previous job title (before current one), based on the date, normally second job title is before current one",
+    "previous_company": "previous company name (before current one)"
+}}
+
+Instructions for determining current vs previous positions:
+1. Look for dates in the work experience section
+2. The position with the most recent dates (or "present", "current", "Now" etc.) is the CURRENT position
+3. The position immediately before the current one (chronologically) is the PREVIOUS position
+4. If only one job is mentioned, put it as current and leave previous fields as empty
+5. Pay attention to date formats like "2020-present", "Jan 2023 - Current", "2022-2024", etc.
+
+Rules:
+1. Return ONLY valid JSON, no additional text or explanations
+2. If information is not found, use empty string ""
+3. Be very careful with dates to correctly identify current vs previous positions
+4. Extract full names and split into first_name and last_name
+5. Look for mobile/phone numbers in various formats
+6. Be thorough and accurate in extraction
+"""
+        return prompt
+    
+
     def _create_batch_prompt(self, resume_texts):
-        """
-        Create a structured prompt for resume parsing
-        
-        Args:
-            resume_text: Raw resume text
-            
-        Returns:
-            Formatted prompt string
-        """
         # Truncate text if too long to avoid token limits
         max_chars = 15000
         truncated_resumes = [] 
