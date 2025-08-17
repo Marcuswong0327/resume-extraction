@@ -254,8 +254,16 @@ def process_resumes(uploaded_files):
                 word_processor = WordProcessor()
 
                 # Get API key from environment or secrets
-                api_key = os.getenv("DEEPSEEK_API_KEY") or st.secrets.get(
-                    "DEEPSEEK_API_KEY")
+                api_key = os.getenv("DEEPSEEK_API_KEY")
+                if not api_key:
+                    try:
+                        api_key = st.secrets["DEEPSEEK_API_KEY"]
+                    except:
+                        api_key = None
+                
+                if not api_key:
+                    raise Exception("DEEPSEEK_API_KEY not found in environment variables or secrets")
+                    
                 ai_parser = AIParser(api_key)
 
                 st.success("✅ Services initialized successfully")
@@ -326,55 +334,71 @@ def process_resumes(uploaded_files):
                     **ai_parser._create_empty_structure()
                 }
 
-        # Process files with controlled parallelism
+        # Process files with optimized batching for speed and reliability
         results = []
 
-        # Use smaller batches for better error tracking
-        max_workers = min(8, len(uploaded_files))  # Limit concurrent workers
+        # Use maximum parallelism for 16-core systems
+        batch_size = 16  # Process 16 files at a time (match core count)
+        max_workers = 16  # Use all 16 cores
+        
+        # Process in batches
+        for batch_start in range(0, len(uploaded_files), batch_size):
+            batch_end = min(batch_start + batch_size, len(uploaded_files))
+            batch_files = uploaded_files[batch_start:batch_end]
+            
+            # Process current batch in parallel
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_file = {
+                    executor.submit(process_single_file, f): f 
+                    for f in batch_files
+                }
+                
+                for future in as_completed(future_to_file):
+                    uploaded_file = future_to_file[future]
+                    
+                    try:
+                        result = future.result(timeout=90)  # 90 second timeout per file
+                        
+                        if result:
+                            results.append(result)
+                            
+                            # Check if extraction was successful
+                            if result.get('extraction_error'):
+                                extraction_failures += 1
+                            elif not any([
+                                    result.get('first_name'),
+                                    result.get('email'),
+                                    result.get('current_job_title')
+                            ]):
+                                parsing_failures += 1
+                            else:
+                                successful_processes += 1
+                                
+                    except Exception as e:
+                        debug_logger.log_error("File Processing", uploaded_file.name, e)
+                        extraction_failures += 1
+                        # Create empty result for failed file
+                        results.append({
+                            'filename': uploaded_file.name,
+                            'processing_error': True,
+                            **ai_parser._create_empty_structure()
+                        })
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_file = {
-                executor.submit(process_single_file, f): f
-                for f in uploaded_files
-            }
+                    # Update progress
+                    progress = len(results) / total_files
+                    progress_bar.progress(progress)
+                    status_text.text(f"Processed {len(results)} / {total_files} resumes")
 
-            for i, future in enumerate(as_completed(future_to_file)):
-                uploaded_file = future_to_file[future]
-
-                try:
-                    result = future.result(
-                        timeout=180)  # 3 minute timeout per file
-
-                    if result:
-                        results.append(result)
-
-                        # Check if extraction was successful
-                        if result.get('extraction_error'):
-                            extraction_failures += 1
-                        elif not any([
-                                result.get('first_name'),
-                                result.get('email'),
-                                result.get('current_job_title')
-                        ]):
-                            parsing_failures += 1
-                        else:
-                            successful_processes += 1
-
-                except Exception as e:
-                    debug_logger.log_error("File Processing",
-                                           uploaded_file.name, e)
-                    extraction_failures += 1
-
-                # Update progress
-                progress = (i + 1) / total_files
-                progress_bar.progress(progress)
-                status_text.text(f"Processed {i + 1} / {total_files} resumes")
-
-                # Update error summary
-                error_summary.info(
-                    f"✅ Successful: {successful_processes} | "
-                    f"⚠️ Extraction Failed: {extraction_failures} | "
-                    f"🤖 Parsing Failed: {parsing_failures}")
+                    # Update error summary
+                    error_summary.info(
+                        f"✅ Successful: {successful_processes} | "
+                        f"⚠️ Extraction Failed: {extraction_failures} | "
+                        f"🤖 Parsing Failed: {parsing_failures}")
+            
+            # Minimal delay between batches for maximum speed
+            if batch_end < len(uploaded_files):
+                import time
+                time.sleep(0.1)  # 100ms delay between batches
 
         # Store results
         st.session_state.processed_candidates = results
