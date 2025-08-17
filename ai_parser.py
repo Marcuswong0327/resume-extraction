@@ -106,7 +106,9 @@ class AIParser:
         if response:
             return self._parse_api_response(response, filename)
         else:
-            self.logger.error(f"No response from AI API for {filename}")
+            self.logger.error(f"No response from AI API for {filename} - Check debug logs for details")
+            if self.debug_mode:
+                st.error(f"❌ No AI response for {filename}. Check API connection or rate limits.")
             return self._create_empty_structure()
 
     def parse_resume_batch(self, resume_texts):
@@ -261,10 +263,16 @@ Rules:
                 error_str = str(e).lower()
                 self.logger.error(f"API attempt {attempt + 1} failed for {context}: {str(e)}")
                 
+                # Log full error details for debugging
+                if self.debug_mode:
+                    st.error(f"API Error (attempt {attempt + 1}): {str(e)}")
+                
                 # Check for rate limiting
                 if "rate limit" in error_str or "429" in error_str:
                     wait_time = 5 + (attempt * 3)  # Progressive backoff for rate limits
                     self.logger.info(f"Rate limit detected, waiting {wait_time} seconds...")
+                    if self.debug_mode:
+                        st.warning(f"Rate limit hit, waiting {wait_time} seconds...")
                     time.sleep(wait_time)
                 elif "timeout" in error_str:
                     wait_time = 2 + attempt  # Shorter wait for timeouts
@@ -274,10 +282,10 @@ Rules:
                     time.sleep(wait_time)
                 
                 if attempt == max_retries - 1:
-                    if "rate limit" in error_str:
+                    if "rate limit" in error_str or "429" in error_str:
                         st.warning(f"⚠️ Rate limit reached for {context}. Consider reducing concurrent workers.")
                     else:
-                        st.error(f"❌ AI API failed after {max_retries} attempts for {context}")
+                        st.error(f"❌ AI API failed after {max_retries} attempts for {context}: {str(e)}")
                     return None
         
         return None
@@ -313,6 +321,11 @@ Rules:
                 json=payload,
                 timeout=30  # Fast timeout for quick processing
             )
+            
+            # Log response details for debugging
+            self.logger.info(f"API response status: {response.status_code} for call #{self.api_call_count}")
+            if self.debug_mode:
+                st.info(f"API Response: Status {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
