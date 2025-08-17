@@ -338,8 +338,8 @@ def process_resumes(uploaded_files):
         results = []
 
         # Use maximum parallelism for 16-core systems
-        batch_size = 4 
-        max_workers = 8  
+        batch_size = 3
+        max_workers = 5 
         
         # Process in batches
         for batch_start in range(0, len(uploaded_files), batch_size):
@@ -478,4 +478,5 @@ if __name__ == "__main__":
     # Setup logging
     logging.basicConfig(level=logging.INFO)
     main()
+
 
