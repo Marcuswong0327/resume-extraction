@@ -274,51 +274,37 @@ Resume Texts:
             raise Exception(f"Error calling DeepSeek API: {str(e)}")
     
     def _parse_batch_api_response(self, response_text, expected_count):
-        """
-        Parse API response and extract JSON data
-        
-        Args:
-            response_text: Raw response text from API
-            
-        Returns:
-            Parsed JSON data as dictionary
-        """
         try:
             # Try to find JSON in the response
             response_text = response_text.strip()
             
             # Remove any markdown code block markers
             if response_text.startswith("```json"):
-                response_text = response_text[7:]
+                response_text = response_text[7:].strip()
             elif response_text.startswith("```"):
                 response_text = response_text[3:]
             if response_text.endswith("```"):
-                response_text = response_text[:-3]
+                response_text = response_text[:-3].strip()
 
             data = json.loads(response_text)
 
             #Normalize response into a flat list of dicts
-            if isinstance(data, dict):
+            if not isinstance(data, dict):
                 data = [data] # single dict into list 
-            elif isinstance(data, list):
-                #Flatten nested list into one level 
-                flattened = []
-                for item in data: 
-                    if isinstance(item, list):
-                        flattened.append(item[0] if item else{}) 
-                    else: 
-                        flattened.append(item) 
-                data = flattened 
-            else: 
-                data = [{} for _ in range(expected_count)]
-
 
             # Ensure exactly expected_count items 
             results = []
             for i in range(expected_count): 
-                item = data[i] if i < len(data) else{}
-                results.append(self._validate_parsed_data(item))
+                if i < len(data) and isinstance(data[i], dict): 
+                    results.append(self._validate_parsed_data(data[i]))
+                else: 
+                    results.append(self._create_empty_structure())
             return results 
+        except json.JSONDecodeError as e: 
+            # when is not valid JSON response
+            st.warning(f"Error parsing batch API response (invalid JSON): {str(e)}")
+            st.code(response_text) 
+            return [self._create_empty_structure() for _ in range(expected_count)]
             
         except Exception as e: 
             st.warning(f"Error parsing batch API response: {str(e)}")
