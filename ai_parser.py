@@ -7,9 +7,15 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 
 class AIParser:
+    """Enhanced DeepSeek V3 API integration with improved error handling and debugging"""
     
     def __init__(self, api_key):
-
+        """
+        Initialize AI parser with OpenRouter API key for DeepSeek V3
+        
+        Args:
+            api_key: OpenRouter API key
+        """
         if not api_key:
             raise ValueError("OpenRouter API key is required")
             
@@ -30,7 +36,7 @@ class AIParser:
         self._test_connection()
     
     def _test_connection(self):
-
+        """Test the OpenRouter API connection with DeepSeek V3 and check for rate limits"""
         try:
             test_payload = {
                 "model": "deepseek/deepseek-chat-v3-0324",
@@ -94,7 +100,7 @@ class AIParser:
         if self.debug_mode:
             st.info(f"🤖 Sending {len(prompt)} character prompt to AI for {filename}")
             
-
+        # Make API call to DeepSeek with retries
         response = self._make_api_call_with_retry(prompt, filename)
             
         if response:
@@ -142,7 +148,7 @@ class AIParser:
             st.error(f"❌ Error parsing batch resumes: {str(e)}")
             return [self._create_empty_structure() for _ in resume_texts]
 
-    def parse_resumes_in_parallel(self, all_resumes, batch_size=4, max_workers=8):
+    def parse_resumes_in_parallel(self, all_resumes, batch_size=3, max_workers=8):
         """
         Parse resumes in parallel with smaller batches and reduced workers for stability
         
@@ -202,13 +208,6 @@ Return only:
     "previous_job_title": "", 
     "previous_company": ""
 }}
-Instructions for determining current vs previous positions:
-1. Look for dates in the work experience section
-2. The position with the most recent dates (or "present", "current", "Now" etc.) is the CURRENT position
-3. The position immediately before the current one (chronologically) is the PREVIOUS position
-4. If only one job is mentioned, put it as current and leave previous fields as empty
-5. Pay attention to date formats like "2020-present", "Jan 2023 - Current", "2022-2024", etc.
-
 
 Most recent job = current. Use "" if not found."""
         
@@ -216,7 +215,7 @@ Most recent job = current. Use "" if not found."""
     
     def _create_batch_prompt(self, resume_texts):
         """Create optimized prompt for batch resume parsing"""
-        max_chars = 15000  # Further reduced for batch processing
+        max_chars = 10000  # Further reduced for batch processing
         truncated_resumes = [] 
         
         for i, text in enumerate(resume_texts, start=1):
@@ -240,13 +239,6 @@ Return ONLY a JSON array with one object per resume (no markdown, no explanation
         "previous_job_title": "previous job title",
         "previous_company": "previous company name"
     }}
-    Instructions for determining current vs previous positions:
-1. Look for dates in the work experience section
-2. The position with the most recent dates (or "present", "current", "Now" etc.) is the CURRENT position
-3. The position immediately before the current one (chronologically) is the PREVIOUS position
-4. If only one job is mentioned, put it as current and leave previous fields as empty
-5. Pay attention to date formats like "2020-present", "Jan 2023 - Current", "2022-2024", etc.
-
 ]
 
 Rules:
@@ -341,7 +333,12 @@ Rules:
                 
                 if not content:
                     self.logger.error("Empty content in API response")
+                    if self.debug_mode:
+                        st.error(f"❌ Empty response from API - full response: {result}")
                     return None
+                
+                if self.debug_mode:
+                    st.success(f"✅ API returned {len(content)} characters")
                     
                 return content
             elif response.status_code == 429:
@@ -374,11 +371,11 @@ Rules:
                 raise Exception(error_msg)
                 
         except requests.exceptions.Timeout:
-            raise Exception("API request timed out")
+            raise Exception("DeepSeek API request timed out")
         except requests.exceptions.RequestException as e:
-            raise Exception(f"Network error calling API: {str(e)}")
+            raise Exception(f"Network error calling DeepSeek API: {str(e)}")
         except Exception as e:
-            raise Exception(f"Error calling API: {str(e)}")
+            raise Exception(f"Error calling DeepSeek API: {str(e)}")
     
     def _parse_api_response(self, response_text, filename="unknown"):
         """Parse single resume API response with better error handling"""
