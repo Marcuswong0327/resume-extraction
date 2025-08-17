@@ -30,15 +30,16 @@ class AIParser:
         
         self.logger = logging.getLogger(__name__)
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
+        self.api_call_count = 0  # Track API calls for rate limit debugging
         
         # Test the API connection
         self._test_connection()
     
     def _test_connection(self):
-        """Test the OpenRouter API connection with DeepSeek V3"""
+        """Test the OpenRouter API connection with DeepSeek V3 and check for rate limits"""
         try:
             test_payload = {
-                "model": "deepseek/deepseek-chat-v3-0324",
+                "model": "deepseek/deepseek-chat",
                 "messages": [{"role": "user", "content": "Hello"}],
                 "max_tokens": 10,
                 "temperature": 0.1
@@ -51,7 +52,10 @@ class AIParser:
                 timeout=10
             )
             
-            if response.status_code != 200:
+            if response.status_code == 429:
+                st.warning("🚫 DeepSeek API rate limit reached. Wait a few minutes before processing more files.")
+                raise Exception("API rate limit reached - try again in a few minutes")
+            elif response.status_code != 200:
                 error_detail = ""
                 try:
                     error_detail = response.json()
@@ -63,6 +67,8 @@ class AIParser:
                 
         except Exception as e:
             self.logger.error(f"OpenRouter API connection test failed: {str(e)}")
+            if "rate limit" in str(e).lower():
+                st.error("❌ DeepSeek API rate limit active. Wait 5-10 minutes before trying again.")
             raise Exception(f"OpenRouter API connection test failed: {str(e)}")
     
     def parse_resume(self, resume_text, filename="unknown"):
@@ -241,9 +247,9 @@ Rules:
         
         return prompt
     
-    def _make_api_call_with_retry(self, prompt, context, max_retries=2):
+    def _make_api_call_with_retry(self, prompt, context, max_retries=3):
         """
-        Make API call to DeepSeek V3 with retry logic and better error handling
+        Make API call with intelligent rate limiting and retry logic
         """
         for attempt in range(max_retries):
             try:
@@ -252,15 +258,27 @@ Rules:
                     return response
                     
             except Exception as e:
+                error_str = str(e).lower()
                 self.logger.error(f"API attempt {attempt + 1} failed for {context}: {str(e)}")
                 
-                if attempt == max_retries - 1:
-                    st.error(f"❌ AI API failed after {max_retries} attempts for {context}")
-                    return None
-                else:
-                    wait_time = 2 ** attempt
-                    self.logger.info(f"Retrying in {wait_time} seconds...")
+                # Check for rate limiting
+                if "rate limit" in error_str or "429" in error_str:
+                    wait_time = 5 + (attempt * 3)  # Progressive backoff for rate limits
+                    self.logger.info(f"Rate limit detected, waiting {wait_time} seconds...")
                     time.sleep(wait_time)
+                elif "timeout" in error_str:
+                    wait_time = 2 + attempt  # Shorter wait for timeouts
+                    time.sleep(wait_time)
+                else:
+                    wait_time = 1 + attempt  # Standard retry wait
+                    time.sleep(wait_time)
+                
+                if attempt == max_retries - 1:
+                    if "rate limit" in error_str:
+                        st.warning(f"⚠️ Rate limit reached for {context}. Consider reducing concurrent workers.")
+                    else:
+                        st.error(f"❌ AI API failed after {max_retries} attempts for {context}")
+                    return None
         
         return None
     
@@ -282,6 +300,13 @@ Rules:
                 "stream": False
             }
             
+            # Track API calls for debugging
+            self.api_call_count += 1
+            self.logger.info(f"Making API call #{self.api_call_count} to DeepSeek")
+            
+            # Small delay to respect DeepSeek API rate limits
+            time.sleep(0.1)  # 100ms delay between requests
+            
             response = requests.post(
                 self.base_url,
                 headers=self.headers,
@@ -298,6 +323,26 @@ Rules:
                     return None
                     
                 return content
+            elif response.status_code == 429:
+                # Detailed 429 error logging
+                error_msg = "🚫 DeepSeek API Rate Limit (429) - Too Many Requests"
+                try:
+                    error_detail = response.json()
+                    if 'error' in error_detail:
+                        error_msg += f"\nAPI Message: {error_detail['error']}"
+                    self.logger.error(f"429 Rate Limit Details: {error_detail}")
+                except:
+                    error_msg += f"\nRaw Response: {response.text}"
+                    self.logger.error(f"429 Rate Limit Raw: {response.text}")
+                
+                # Check rate limit headers if available
+                if 'retry-after' in response.headers:
+                    retry_after = response.headers['retry-after']
+                    error_msg += f"\nRetry After: {retry_after} seconds"
+                    self.logger.error(f"Rate limit retry-after header: {retry_after}")
+                
+                st.error(error_msg)
+                raise Exception("Rate limit exceeded (429)")
             else:
                 error_msg = f"DeepSeek API error: {response.status_code}"
                 try:
